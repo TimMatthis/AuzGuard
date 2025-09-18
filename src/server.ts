@@ -1,6 +1,9 @@
 // Main Fastify server for AuzGuard API
 
 import Fastify from 'fastify';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import fs from 'fs';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
@@ -132,6 +135,33 @@ async function registerPluginsAndRoutes() {
     auditService,
     authService
   });
+
+  // Serve frontend build and enable SPA fallback for non-API routes
+  const staticRoot = path.join(__dirname, '..', 'frontend', 'dist');
+  try {
+    await fastify.register(fastifyStatic, {
+      root: staticRoot,
+      index: ['index.html'],
+      wildcard: false,
+      prefix: '/',
+      decorateReply: true
+    });
+
+    // History API fallback: send index.html for non-API paths
+    fastify.get('/*', (request, reply) => {
+      if (request.url.startsWith('/api')) {
+        return reply.callNotFound();
+      }
+      const indexPath = path.join(staticRoot, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        reply.type('text/html').send(fs.readFileSync(indexPath));
+      } else {
+        reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Frontend not built. Run npm run build:frontend' } });
+      }
+    });
+  } catch (err) {
+    fastify.log.warn('Static serving not configured. Build the frontend or run dev separately.');
+  }
 }
 
 // Graceful shutdown
