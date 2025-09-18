@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AuzGuard Rule Schema v1",
+  "type": "object",
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Z_][A-Z0-9_]*$",
+      "description": "Unique identifier for the rule"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the rule"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable title for the rule"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "Detailed description of the rule"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["PRIVACY", "HEALTH", "AI_RISK", "CDR", "ANTI_DISCRIM", "TELECOM", "COPYRIGHT", "EXPORT", "CONSUMER"],
+      "description": "Category of compliance rule"
+    },
+    "jurisdiction": {
+      "type": "string",
+      "enum": ["AU", "NSW", "VIC", "ACT", "QLD", "SA", "WA", "TAS", "NT"],
+      "description": "Legal jurisdiction this rule applies to"
+    },
+    "legal_basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "Legal basis for this rule"
+    },
+    "applies_to": {
+      "type": "object",
+      "properties": {
+        "data_class": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "org_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Scope of application for this rule"
+    },
+    "condition": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CEL-like expression for rule evaluation"
+    },
+    "effect": {
+      "type": "string",
+      "enum": ["ALLOW", "BLOCK", "ROUTE", "REQUIRE_OVERRIDE", "WARN_ROUTE"],
+      "description": "Action to take when rule matches"
+    },
+    "route_to": {
+      "type": "string",
+      "description": "Model pool to route to (required if effect is ROUTE or WARN_ROUTE)"
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Compliance obligations triggered by this rule"
+    },
+    "evidence_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Evidence requirements for compliance"
+    },
+    "overrides": {
+      "type": "object",
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "require_justification": {
+          "type": "boolean"
+        }
+      },
+      "description": "Override configuration for this rule"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Evaluation priority (lower numbers evaluated first)"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "description": "Severity level of this rule"
+    },
+    "audit_log_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Fields to include in audit logs"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "request": {
+            "type": "object"
+          },
+          "expect": {
+            "type": "string",
+            "enum": ["ALLOW", "BLOCK", "ROUTE", "REQUIRE_OVERRIDE", "WARN_ROUTE"]
+          }
+        },
+        "required": ["name", "request", "expect"]
+      },
+      "description": "Test cases for this rule"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Indicates whether the rule is active",
+      "default": true
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Operational metadata for governance",
+      "properties": {
+        "owner": { "type": "string" },
+        "last_reviewed": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 500 }
+      }
+    }
+  },
+  "required": ["rule_id", "version", "title", "category", "jurisdiction", "legal_basis", "condition", "effect", "priority", "severity"]
+}

@@ -1,0 +1,143 @@
+{
+  "policy_id": "Custom_Business_Rules_v1",
+  "version": "v1.0.0",
+  "title": "Custom Business Rules Policy",
+  "jurisdiction": "AU",
+  "evaluation_strategy": {
+    "order": "ASC_PRIORITY",
+    "conflict_resolution": "FIRST_MATCH",
+    "default_effect": "ALLOW"
+  },
+  "rules": [
+    {
+      "rule_id": "FINANCIAL_DATA_ONSHORE",
+      "version": "v1.0.0",
+      "title": "Financial Data Must Stay Onshore",
+      "description": "All financial data must be processed within Australian jurisdiction",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025", "Banking Act"],
+      "applies_to": {
+        "data_class": ["financial", "banking", "payment_data"],
+        "org_ids": ["bank-*", "fintech-*"]
+      },
+      "condition": "data_class in ['financial', 'banking', 'payment_data'] && destination_region != 'AU'",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_COMPLIANCE"],
+      "priority": 5,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "data_class", "destination_region", "actor_id"],
+      "overrides": {
+        "allowed": true,
+        "roles": ["compliance", "admin"],
+        "require_justification": true
+      },
+      "tests": [
+        {
+          "name": "Block financial data to US",
+          "request": {
+            "org_id": "bank-abc",
+            "data_class": "financial",
+            "destination_region": "US"
+          },
+          "expect": "BLOCK"
+        },
+        {
+          "name": "Allow financial data within AU",
+          "request": {
+            "org_id": "bank-abc", 
+            "data_class": "financial",
+            "destination_region": "AU"
+          },
+          "expect": "ALLOW"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "compliance-team",
+        "last_reviewed": "2024-01-15",
+        "notes": "Critical rule for financial data sovereignty"
+      }
+    },
+    {
+      "rule_id": "DEV_ENVIRONMENT_ROUTE",
+      "version": "v1.0.0", 
+      "title": "Development Environment Routing",
+      "description": "Route development requests to sandbox models",
+      "category": "AI_RISK",
+      "jurisdiction": "AU",
+      "legal_basis": ["Internal Development Policy"],
+      "applies_to": {
+        "domains": ["development", "dev", "staging"]
+      },
+      "condition": "environment in ['development', 'dev', 'staging']",
+      "effect": "ROUTE",
+      "route_to": "sandbox_no_persist_pool",
+      "obligations": ["LOG_BASIC"],
+      "priority": 20,
+      "severity": "LOW",
+      "audit_log_fields": ["org_id", "environment", "model_pool"],
+      "overrides": {
+        "allowed": false
+      },
+      "tests": [
+        {
+          "name": "Route dev requests to sandbox",
+          "request": {
+            "org_id": "company-123",
+            "environment": "development",
+            "purpose": "testing"
+          },
+          "expect": "ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "dev-team",
+        "last_reviewed": "2024-01-10",
+        "notes": "Ensures dev traffic uses non-persistent models"
+      }
+    },
+    {
+      "rule_id": "HIGH_RISK_AI_APPROVAL",
+      "version": "v1.0.0",
+      "title": "High Risk AI Requires Approval", 
+      "description": "High risk AI applications require manager approval",
+      "category": "AI_RISK",
+      "jurisdiction": "AU",
+      "legal_basis": ["AI Ethics Framework", "Risk Management Policy"],
+      "applies_to": {
+        "data_class": ["sensitive_personal", "demographic_data"]
+      },
+      "condition": "data_class in ['sensitive_personal', 'demographic_data'] && purpose == 'inference'",
+      "effect": "REQUIRE_OVERRIDE",
+      "route_to": "bias_audited_pool",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_MANAGER", "BIAS_AUDIT"],
+      "priority": 3,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "data_class", "purpose", "actor_id", "override_reason"],
+      "overrides": {
+        "allowed": true,
+        "roles": ["admin", "compliance"],
+        "require_justification": true
+      },
+      "tests": [
+        {
+          "name": "Sensitive data requires override",
+          "request": {
+            "org_id": "hr-dept",
+            "data_class": "sensitive_personal",
+            "purpose": "inference"
+          },
+          "expect": "REQUIRE_OVERRIDE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "ai-governance-team",
+        "last_reviewed": "2024-01-12",
+        "notes": "Implements bias mitigation for sensitive AI applications"
+      }
+    }
+  ]
+}

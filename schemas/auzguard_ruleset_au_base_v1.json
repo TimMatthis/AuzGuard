@@ -1,0 +1,204 @@
+{
+  "policy_id": "AuzGuard_AU_Base_v1",
+  "version": "v1.0.0",
+  "title": "Australian Base Compliance Policy",
+  "jurisdiction": "AU",
+  "evaluation_strategy": {
+    "order": "ASC_PRIORITY",
+    "conflict_resolution": "FIRST_MATCH",
+    "default_effect": "BLOCK"
+  },
+  "rules": [
+    {
+      "rule_id": "HEALTH_NO_OFFSHORE",
+      "version": "v1.0.0",
+      "title": "Health Data Offshore Processing Block",
+      "description": "Blocks processing of health data outside Australian jurisdiction",
+      "category": "HEALTH",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025", "Health Records Act"],
+      "applies_to": {
+        "data_class": ["health_record", "medical_data", "patient_data"]
+      },
+      "condition": "data_class in ['health_record', 'medical_data', 'patient_data'] && destination_region != 'AU'",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_DPO"],
+      "priority": 1,
+      "severity": "CRITICAL",
+      "audit_log_fields": ["org_id", "data_class", "destination_region", "processing_region"],
+      "tests": [
+        {
+          "name": "Health data to US blocked",
+          "request": {
+            "org_id": "hospital-123",
+            "data_class": "health_record",
+            "destination_region": "US",
+            "processing_region": "US"
+          },
+          "expect": "BLOCK"
+        },
+        {
+          "name": "Health data to AU allowed",
+          "request": {
+            "org_id": "hospital-123",
+            "data_class": "health_record",
+            "destination_region": "AU",
+            "processing_region": "AU"
+          },
+          "expect": "ALLOW"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Chief Privacy Officer",
+        "last_reviewed": "2025-09-01"
+      }
+    },
+    {
+      "rule_id": "PRIV_APP8_CROSS_BORDER",
+      "version": "v1.0.0",
+      "title": "Privacy Act APP8 Cross-Border Disclosure",
+      "description": "Requires override for cross-border personal information disclosure",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025 APP8"],
+      "applies_to": {
+        "data_class": ["personal_information", "pii"]
+      },
+      "condition": "personal_information == true && destination_region != 'AU'",
+      "effect": "REQUIRE_OVERRIDE",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_DPO", "OBTAIN_CONSENT"],
+      "overrides": {
+        "allowed": true,
+        "roles": ["General Counsel", "Privacy Officer", "Compliance Manager"],
+        "require_justification": true
+      },
+      "priority": 2,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "personal_information", "destination_region", "purpose"],
+      "tests": [
+        {
+          "name": "Personal info to US requires override",
+          "request": {
+            "org_id": "company-456",
+            "personal_information": true,
+            "destination_region": "US",
+            "purpose": "inference"
+          },
+          "expect": "REQUIRE_OVERRIDE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Privacy Office",
+        "last_reviewed": "2025-08-15"
+      }
+    },
+    {
+      "rule_id": "CDR_DATA_SOVEREIGNTY",
+      "version": "v1.0.0",
+      "title": "Consumer Data Right Sovereignty",
+      "description": "Routes CDR data to Australian-only processing",
+      "category": "CDR",
+      "jurisdiction": "AU",
+      "legal_basis": ["Consumer Data Right Act"],
+      "applies_to": {
+        "data_class": ["cdr_data", "banking_data", "financial_data"]
+      },
+      "condition": "data_class in ['cdr_data', 'banking_data', 'financial_data']",
+      "effect": "ROUTE",
+      "route_to": "onshore_default_pool",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_ACMA"],
+      "priority": 3,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "data_class", "destination_region"],
+      "tests": [
+        {
+          "name": "CDR data routed to AU pool",
+          "request": {
+            "org_id": "bank-789",
+            "data_class": "cdr_data",
+            "destination_region": "US"
+          },
+          "expect": "ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "CDR Compliance",
+        "last_reviewed": "2025-08-20"
+      }
+    },
+    {
+      "rule_id": "AI_RISK_BIAS_AUDIT",
+      "version": "v1.0.0",
+      "title": "AI Bias Risk Management",
+      "description": "Routes high-risk AI applications to bias-audited models",
+      "category": "AI_RISK",
+      "jurisdiction": "AU",
+      "legal_basis": ["AI Safety Framework"],
+      "applies_to": {
+        "data_class": ["sensitive_personal", "demographic_data"]
+      },
+      "condition": "data_class in ['sensitive_personal', 'demographic_data'] && ai_risk_level == 'high'",
+      "effect": "ROUTE",
+      "route_to": "bias_audited_pool",
+      "obligations": ["LOG_IMMUTABLE", "BIAS_AUDIT_REQUIRED"],
+      "priority": 4,
+      "severity": "MEDIUM",
+      "audit_log_fields": ["org_id", "data_class", "ai_risk_level", "model_type"],
+      "tests": [
+        {
+          "name": "High-risk AI routed to bias-audited pool",
+          "request": {
+            "org_id": "ai-company-123",
+            "data_class": "demographic_data",
+            "ai_risk_level": "high",
+            "model_type": "llm"
+          },
+          "expect": "ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Responsible AI",
+        "last_reviewed": "2025-07-30"
+      }
+    },
+    {
+      "rule_id": "SANDBOX_NO_PERSIST",
+      "version": "v1.0.0",
+      "title": "Sandbox Environment No Persistence",
+      "description": "Routes sandbox requests to non-persistent models",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025"],
+      "applies_to": {
+        "domains": ["sandbox", "testing", "development"]
+      },
+      "condition": "environment in ['sandbox', 'testing', 'development']",
+      "effect": "ROUTE",
+      "route_to": "sandbox_no_persist_pool",
+      "obligations": ["LOG_IMMUTABLE"],
+      "priority": 5,
+      "severity": "LOW",
+      "audit_log_fields": ["org_id", "environment", "purpose"],
+      "tests": [
+        {
+          "name": "Sandbox requests routed to non-persistent pool",
+          "request": {
+            "org_id": "dev-team-456",
+            "environment": "sandbox",
+            "purpose": "testing"
+          },
+          "expect": "ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Platform Engineering",
+        "last_reviewed": "2025-08-01"
+      }
+    }
+  ]
+}
