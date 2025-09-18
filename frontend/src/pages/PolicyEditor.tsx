@@ -142,13 +142,24 @@ export function PolicyEditor() {
     );
   }
 
+  // Prefer editedRule when present; fallback to selectedRule to avoid null during initial render
+  const viewRule = editedRule ?? selectedRule;
+
+  if (!viewRule) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-white">Loading rule...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">{selectedRule.title}</h1>
-          <p className="text-gray-400">{selectedRule.rule_id} • {policy.title}</p>
+          <h1 className="text-2xl font-bold text-white">{viewRule.title}</h1>
+          <p className="text-gray-400">{viewRule.rule_id} • {policy.title}</p>
         </div>
         <div className="flex space-x-3">
           {isEditing ? (
@@ -218,7 +229,7 @@ export function PolicyEditor() {
       <div className="bg-gray-800 rounded-lg p-6">
         {activeTab === 'definition' && (
           <RuleDefinitionTab
-            rule={editedRule!}
+            rule={viewRule}
             onChange={setEditedRule}
             isEditing={isEditing}
           />
@@ -226,7 +237,7 @@ export function PolicyEditor() {
         
         {activeTab === 'condition' && (
           <RuleConditionTab
-            rule={editedRule!}
+            rule={viewRule}
             onChange={setEditedRule}
             isEditing={isEditing}
           />
@@ -234,7 +245,7 @@ export function PolicyEditor() {
         
         {activeTab === 'obligations' && (
           <RuleObligationsTab
-            rule={editedRule!}
+            rule={viewRule}
             onChange={setEditedRule}
             isEditing={isEditing}
           />
@@ -242,7 +253,7 @@ export function PolicyEditor() {
         
         {activeTab === 'tests' && (
           <RuleTestsTab
-            rule={editedRule!}
+            rule={viewRule}
             onChange={setEditedRule}
             isEditing={isEditing}
             onTestRule={handleTestRule}
