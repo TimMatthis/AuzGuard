@@ -96,7 +96,16 @@ export function PolicyEditor() {
     return (
       <RuleBuilder
         onRuleCreate={handleCreateRule}
-        onCancel={() => setShowRuleBuilder(false)}
+        onCancel={() => {
+          const from = (location.state as any)?.from;
+          if (from) {
+            navigate(from);
+          } else if (policyId) {
+            navigate(`/policies/${policyId}`);
+          } else {
+            setShowRuleBuilder(false);
+          }
+        }}
       />
     );
   }

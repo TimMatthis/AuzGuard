@@ -168,6 +168,27 @@ button {
 .metrics-row__meta { @apply text-xs text-gray-400; }
 .metrics-row__value { @apply text-sm text-gray-300; }
 
+/* ---- Rule Builder + Forms ---- */
+.form-section { @apply bg-white/5 border border-white/10 rounded-lg p-6 space-y-4; }
+.form-row { @apply grid grid-cols-1 md:grid-cols-2 gap-4; }
+.form-group { @apply space-y-2; }
+.form-group label { @apply block text-sm font-medium text-gray-200; }
+.form-group small { @apply block text-xs text-gray-500; }
+.checkbox-group { @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2; }
+.checkbox-label { @apply inline-flex items-center gap-2 text-sm text-gray-300; }
+.condition-builder { @apply bg-white/5 border border-white/10 rounded-lg p-4 space-y-3; }
+.test-case-builder { @apply bg-white/5 border border-white/10 rounded-lg p-4 space-y-3; }
+.test-cases-list { @apply mt-3 space-y-2; }
+.test-case-item { @apply flex items-center justify-between bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm; }
+.form-actions { @apply flex items-center gap-3 justify-end; }
+
+.btn { @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors; }
+.btn--primary { @apply text-white; background-image: linear-gradient(135deg, #3b82f6 0%, #2563eb 40%, #4f46e5 100%); }
+.btn--primary:hover { filter: brightness(1.05); }
+.btn--secondary { @apply bg-white/10 text-white hover:bg-white/15; }
+.btn--danger { @apply bg-red-600 text-white hover:bg-red-500; }
+.btn--small { @apply px-2 py-1 text-xs; }
+
 /* Utility classes */
 .text-primary {
   @apply text-white;

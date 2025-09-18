@@ -244,7 +244,7 @@ export function Policies() {
           )}
           {canEditRules && selectedPolicy && (
             <button
-              onClick={() => navigate(`/policies/${selectedPolicy.policy_id}`, { state: { showRuleBuilder: true } })}
+              onClick={() => navigate(`/policies/${selectedPolicy.policy_id}`, { state: { showRuleBuilder: true, from: '/policies' } })}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-md transition-colors"
             >
               + Create Rule
