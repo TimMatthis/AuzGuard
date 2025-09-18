@@ -28,8 +28,36 @@ const prisma = new PrismaClient();
 const ajv = new Ajv();
 
 // Load JSON schemas
-const policySchema: any = require('../schemas/auzguard_rule_schema_v1.json');
-const rulesetSchema: any = require('../schemas/auzguard_ruleset_au_base_v1.json');
+const ruleSchema: any = require('../schemas/auzguard_rule_schema_v1.json');
+const rulesetExample: any = require('../schemas/auzguard_ruleset_au_base_v1.json');
+
+// Compose a Policy (ruleset) schema that allows an empty rules array on creation
+const policySchema: any = {
+  $schema: 'http://json-schema.org/draft-07/schema#',
+  title: 'AuzGuard Policy (Ruleset) Schema v1',
+  type: 'object',
+  properties: {
+    policy_id: { type: 'string', minLength: 1 },
+    version: { type: 'string', pattern: '^v\\d+\\.\\d+\\.\\d+$' },
+    title: { type: 'string', minLength: 1 },
+    jurisdiction: { type: 'string', minLength: 1 },
+    evaluation_strategy: {
+      type: 'object',
+      properties: {
+        order: { type: 'string' },
+        conflict_resolution: { type: 'string' },
+        default_effect: { type: 'string' }
+      },
+      required: ['order', 'conflict_resolution', 'default_effect']
+    },
+    rules: {
+      type: 'array',
+      items: ruleSchema,
+      default: []
+    }
+  },
+  required: ['policy_id', 'version', 'title', 'jurisdiction', 'evaluation_strategy', 'rules']
+};
 
 const policyValidator = ajv.compile(policySchema);
 
@@ -210,7 +238,7 @@ async function seedInitialData() {
     if (existingPolicies === 0) {
       fastify.log.info('Seeding initial policy data...');
 
-      const baseRuleset = rulesetSchema;
+      const baseRuleset = rulesetExample;
 
       await prisma.policy.create({
         data: {
