@@ -1,4 +1,5 @@
 // Main Fastify server for AuzGuard API
+import 'dotenv/config';
 
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
