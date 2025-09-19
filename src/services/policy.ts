@@ -26,9 +26,15 @@ export class PolicyService {
   }
 
   async createPolicy(policy: Policy, publishedBy: string): Promise<Policy> {
+    // Ensure rules is an array (empty allowed)
+    if (!Array.isArray(policy.rules)) {
+      (policy as any).rules = [];
+    }
+
     const isValid = this.validator(policy);
     if (!isValid) {
-      throw new Error(`Policy validation failed: ${this.validator.errors?.map((e: any) => e.message).join(', ')}`);
+      const details = (this.validator.errors || []).map((e: any) => `${e.instancePath || e.schemaPath}: ${e.message}`).join('; ');
+      throw new Error(`Policy validation failed: ${details}`);
     }
 
     const created = await this.prisma.policy.create({
@@ -47,9 +53,14 @@ export class PolicyService {
   }
 
   async updatePolicy(policyId: string, policy: Policy, publishedBy: string): Promise<Policy> {
+    if (!Array.isArray(policy.rules)) {
+      (policy as any).rules = [];
+    }
+
     const isValid = this.validator(policy);
     if (!isValid) {
-      throw new Error(`Policy validation failed: ${this.validator.errors?.map((e: any) => e.message).join(', ')}`);
+      const details = (this.validator.errors || []).map((e: any) => `${e.instancePath || e.schemaPath}: ${e.message}`).join('; ');
+      throw new Error(`Policy validation failed: ${details}`);
     }
 
     const updated = await this.prisma.policy.update({
