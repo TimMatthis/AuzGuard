@@ -9,8 +9,10 @@ interface LayoutProps {
 const NAV_LINKS = [
   { name: 'Dashboard', href: '/dashboard', icon: 'DB' },
   { name: 'Policies', href: '/policies', icon: 'POL' },
+  { name: 'Models', href: '/models', icon: 'MDL' },
   { name: 'Simulator', href: '/simulator', icon: 'SIM' },
   { name: 'Chat Router', href: '/chat', icon: 'CHAT' },
+  { name: 'Chat User Interface', href: '/chat-ui', icon: 'UI' },
   { name: 'Audit Log', href: '/audit', icon: 'AUD' },
   { name: 'Routes', href: '/routes', icon: 'RTS' },
   { name: 'Settings', href: '/settings', icon: 'CFG' }

@@ -76,9 +76,11 @@ export class CELExpressionEvaluator {
       return this.evaluateInOperator(expr);
     }
 
-    // Handle has() function
-    if (expr.startsWith('has(') && expr.endsWith(')')) {
-      return this.evaluateHasFunction(expr);
+    // Handle functions: has(), contains(), regex_match()
+    if (expr.endsWith(')')) {
+      if (expr.startsWith('has(')) return this.evaluateHasFunction(expr);
+      if (expr.startsWith('contains(')) return this.evaluateContainsFunction(expr);
+      if (expr.startsWith('regex_match(')) return this.evaluateRegexMatchFunction(expr);
     }
 
     // Handle simple boolean literals
@@ -152,6 +154,48 @@ export class CELExpressionEvaluator {
   private evaluateHasFunction(expr: string): boolean {
     const field = expr.slice(4, -1).trim().replace(/^['"]|['"]$/g, '');
     return this.hasField(field);
+  }
+
+  private evaluateContainsFunction(expr: string): boolean {
+    // contains(value, needle)
+    const args = this.parseFunctionArgs(expr, 'contains');
+    if (args.length !== 2) throw new Error('contains() expects 2 arguments');
+    const hay = this.resolveValue(args[0]);
+    const needle = this.resolveValue(args[1]);
+    if (typeof hay !== 'string' || typeof needle !== 'string') return false;
+    return hay.toLowerCase().includes(needle.toLowerCase());
+  }
+
+  private evaluateRegexMatchFunction(expr: string): boolean {
+    // regex_match(value, pattern)
+    const args = this.parseFunctionArgs(expr, 'regex_match');
+    if (args.length !== 2) throw new Error('regex_match() expects 2 arguments');
+    const value = this.resolveValue(args[0]);
+    const pattern = this.resolveValue(args[1]);
+    if (typeof value !== 'string' || typeof pattern !== 'string') return false;
+    try {
+      const re = new RegExp(pattern, 'i');
+      return re.test(value);
+    } catch (e) {
+      throw new Error('Invalid regex pattern');
+    }
+  }
+
+  private parseFunctionArgs(expr: string, name: string): string[] {
+    const inner = expr.slice(name.length + 1, -1); // remove name(
+    const parts: string[] = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) {
+        parts.push(inner.substring(start, i).trim());
+        start = i + 1;
+      }
+    }
+    parts.push(inner.substring(start).trim());
+    return parts;
   }
 
   private evaluateFieldAccess(field: string): boolean {

@@ -17,6 +17,7 @@ import { AuditService } from './services/audit';
 import { RouteService } from './services/routes';
 import { AuthService } from './services/auth';
 import { ModelGardenService } from './services/modelGarden';
+import { PreprocessorService } from './services/preprocessor';
 
 import { policyRoutes } from './routes/policy';
 import { evaluationRoutes } from './routes/evaluation';
@@ -68,6 +69,7 @@ const evaluationService = new EvaluationService();
 const auditService = new AuditService(prisma, process.env.HASH_SALT || 'default-salt');
 const routeService = new RouteService(prisma);
 const modelGardenService = new ModelGardenService(prisma);
+const preprocessorService = new PreprocessorService();
 
 // Create Fastify instance
 const fastify = Fastify({
@@ -154,7 +156,8 @@ async function registerPluginsAndRoutes() {
     evaluationService,
     policyService,
     auditService,
-    modelGardenService
+    modelGardenService,
+    preprocessorService
   });
 
   await fastify.register(overrideRoutes, {

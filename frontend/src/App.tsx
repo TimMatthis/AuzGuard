@@ -9,6 +9,8 @@ import { Dashboard } from './pages/Dashboard'
 import { Policies } from './pages/Policies'
 import { PolicyEditor } from './pages/PolicyEditor'
 import { ChatPlayground } from './pages/ChatPlayground'
+import { Models } from './pages/Models'
+import { ChatUI } from './pages/ChatUI'
 import { Simulator } from './pages/Simulator'
 import { Audit } from './pages/Audit'
 import { Routes as RoutesPage } from './pages/Routes'
@@ -36,6 +38,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Policies />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/models"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Models />
               </Layout>
             </ProtectedRoute>
           }
@@ -76,6 +88,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <ChatPlayground />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat-ui"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ChatUI />
               </Layout>
             </ProtectedRoute>
           }

@@ -120,26 +120,32 @@ export class PolicyService {
       throw new Error('Rule not found');
     }
 
-    const results = [];
+    const { evaluatePolicy } = await import('../evaluator/cel');
 
-    if (rule.tests) {
-      for (const test of rule.tests) {
-        const passed = Math.random() > 0.5;
+    const results: Array<{
+      name: string;
+      passed: boolean;
+      expected: string;
+      actual: string;
+      trace?: Array<{ rule_id: string; matched: boolean; reason?: string }>;
+    }> = [];
 
-        results.push({
-          name: test.name,
-          passed,
-          expected: test.expect,
-          actual: passed ? test.expect : 'BLOCK',
-          trace: []
-        });
-      }
+    for (const test of rule.tests || []) {
+      const evaluation = evaluatePolicy(policy as any, test.request as Record<string, unknown>);
+      const matchedThisRule = evaluation.matched_rule === rule.rule_id;
+      const passed = matchedThisRule && evaluation.decision === test.expect;
+
+      results.push({
+        name: test.name,
+        passed,
+        expected: test.expect,
+        actual: evaluation.decision,
+        trace: evaluation.trace
+      });
     }
 
-    const allPassed = results.every(r => r.passed);
-
     return {
-      pass: allPassed,
+      pass: results.length > 0 && results.every(r => r.passed),
       results
     };
   }

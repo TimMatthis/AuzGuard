@@ -8,6 +8,7 @@ import { PolicyService } from '../services/policy';
 import { AuditService } from '../services/audit';
 import { ModelGardenService } from '../services/modelGarden';
 import { ModelPool, RouteTarget, RoutingRequest, RoutingResponse, UserRole } from '../types';
+import { PreprocessorService } from '../services/preprocessor';
 
 interface RouteParams {
   poolId: string;
@@ -21,12 +22,13 @@ interface RouteRouteOptions {
   policyService: PolicyService;
   auditService: AuditService;
   modelGardenService: ModelGardenService;
+  preprocessorService?: PreprocessorService;
 }
 
 const extractUser = (request: FastifyRequest) => request.user as { id?: string; role: UserRole };
 
 export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteOptions) {
-  const { routeService, authService, evaluationService, policyService, auditService, modelGardenService } = options;
+  const { routeService, authService, evaluationService, policyService, auditService, modelGardenService, preprocessorService } = options;
 
   // Authentication middleware
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -210,9 +212,14 @@ export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteO
       const orgId = request.body.org_id || (request.headers['x-org-id'] as string | undefined);
       const actorId = request.body.actor_id || (request.headers['x-actor-id'] as string | undefined);
 
+      // Enrich payload by inspecting message content (PII etc.)
+      const enrichedPayload = preprocessorService
+        ? preprocessorService.enrich(request.body.request)
+        : request.body.request;
+
       const evaluation = await evaluationService.evaluate(
         request.body.policy_id,
-        request.body.request,
+        enrichedPayload,
         policyService,
         auditService,
         orgId,
@@ -265,7 +272,7 @@ export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteO
             modelPoolId: pool.pool_id,
             orgId,
             auditLogId: evaluation.audit_log_id,
-            requestPayload: request.body.request,
+            requestPayload: enrichedPayload,
             target: selectedCandidate.target
           });
 
