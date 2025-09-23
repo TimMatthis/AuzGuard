@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { ModelPool, RouteTarget } from '../types';
@@ -40,87 +40,129 @@ export function Models() {
     queryFn: () => apiClient.getModelPools()
   });
 
+  const allTargets = useMemo<RouteTarget[]>(() => {
+    if (!pools) return [];
+    const out: RouteTarget[] = [];
+    for (const p of pools) out.push(...(p.target_profiles || []));
+    return out;
+  }, [pools]);
+
+  const costs = useMemo<number[]>(() => allTargets.map(t => Number(t.profile?.cost?.per_1k_tokens ?? 0)).filter(n => Number.isFinite(n)), [allTargets]);
+  const costThresholds = useMemo(() => {
+    const arr = [...costs].sort((a, b) => a - b);
+    if (arr.length === 0) return { low: 0, high: 0 };
+    const lowIdx = Math.floor(arr.length / 3);
+    const highIdx = Math.floor((arr.length * 2) / 3);
+    return { low: arr[lowIdx] ?? arr[0], high: arr[highIdx] ?? arr[arr.length - 1] };
+  }, [costs]);
+
+  const byProvider = useMemo<Record<string, RouteTarget[]>>(() => {
+    const map: Record<string, RouteTarget[]> = {};
+    for (const t of allTargets) {
+      (map[t.provider] = map[t.provider] || []).push(t);
+    }
+    return map;
+  }, [allTargets]);
+
+  const providerKeys = useMemo(() => Object.keys(byProvider).sort(), [byProvider]);
+
   return (
     <PageLayout
       title="Model Garden"
-      subtitle="Profiles of onshore model pools and targets with residency, certifications, performance and cost."
+      subtitle="Compare models grouped by provider with residency, strengths and relative cost at-a-glance."
     >
       <Panel
         title="How to choose"
         description="Pick models based on residency, certifications, latency/cost and your task type. Route policies can enforce residency and auto-select from preferred pools."
       >
         <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
-          <li>Residency: Use AU-only for restricted data classes (e.g., health/CDR).</li>
-          <li>Certifications: Prefer IRAP/ISO27001 for regulated workloads.</li>
-          <li>Performance: Latency and p95 guide interactive workloads; throughput for batch.</li>
-          <li>Cost: Balance token cost vs. quality; use sandbox pools for dev/test.</li>
-          <li>Tags: task_types and bias_audited guide “best for” use-cases.</li>
+          <li>Residency: AU and AU‑Local/Onsite for sovereign workloads.</li>
+          <li>Strengths: Lite/Standard/Strong based on quality and tags.</li>
+          <li>Cost: $ (low), $$ (balanced), $$$ (premium) relative to peers.</li>
+          <li>Capabilities: JSON mode, function calling, streaming, vision.</li>
         </ul>
       </Panel>
 
-      {isLoading && <Panel><div className="text-sm text-slate-400">Loading model pools…</div></Panel>}
-      {isError && <Panel className="panel--alert"><div className="text-sm text-red-400">{(error as Error)?.message || 'Failed to load pools'}</div></Panel>}
+      {isLoading && <Panel><div className="text-sm text-slate-400">Loading model providers…</div></Panel>}
+      {isError && <Panel className="panel--alert"><div className="text-sm text-red-400">{(error as Error)?.message || 'Failed to load data'}</div></Panel>}
 
-      {!isLoading && pools?.map(pool => (
-        <Panel
-          key={pool.pool_id}
-          title={`${pool.pool_id} — ${pool.region}`}
-          description={pool.description}
-        >
-          <div className="space-y-3">
-            {(pool.target_profiles || []).map(target => (
-              <div key={target.id} className="rounded border border-gray-700 bg-gray-900/40 p-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-semibold text-white">
-                      {target.provider} / {target.endpoint}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      Weight {target.weight} • Region {target.region} • {target.is_active ? 'Active' : 'Inactive'}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <ResidencyBadge target={target} />
-                  </div>
-                </div>
+      {!isLoading && providerKeys.map(provider => {
+        const items = byProvider[provider] || [];
+        if (!items.length) return null;
 
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-200">
-                  <div>
-                    <div className="text-gray-400 text-xs mb-1">Performance</div>
+        // Compute provider-level indicators
+        const residencies = new Set<string>();
+        const strengths = new Set<string>();
+        let minCtx = Infinity, maxCtx = 0;
+        let avgCost = 0, nCost = 0;
+        const hasCap = (t: RouteTarget, name: string) => t.profile?.capabilities?.some(c => String(c).toLowerCase().includes(name)) || (t.profile?.tags && (t.profile.tags as any)[name] === true);
+
+        for (const t of items) {
+          const residency = t.profile?.compliance?.data_residency || 'unknown';
+          const deployment = (t.profile?.tags as any)?.deployment as string | undefined;
+          if (residency === 'AU' && (deployment === 'local' || deployment === 'onsite' || deployment === 'onprem')) residencies.add('AU_LOCAL');
+          residencies.add(residency);
+          const s = t.profile?.quality?.strength;
+          if (s) strengths.add(s);
+          const ctx = t.profile?.limits?.context_window_tokens ?? 8192;
+          minCtx = Math.min(minCtx, ctx);
+          maxCtx = Math.max(maxCtx, ctx);
+          const cost = Number(t.profile?.cost?.per_1k_tokens ?? NaN);
+          if (Number.isFinite(cost)) { avgCost += cost; nCost++; }
+        }
+        avgCost = nCost ? avgCost / nCost : 0;
+        const costBand = avgCost <= costThresholds.low ? '$' : avgCost >= costThresholds.high ? '$$$' : '$$';
+
+        return (
+          <Panel key={provider} title={provider} description={`Residency: ${Array.from(residencies).join(', ')} • Strengths: ${Array.from(strengths).join(', ') || 'n/a'} • Context window: ${isFinite(minCtx) ? minCtx : 0}–${maxCtx} tokens • Cost: ${costBand}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {items.map(target => (
+                <div key={target.id} className="rounded border border-gray-700 bg-gray-900/40 p-3">
+                  <div className="flex items-start justify-between">
                     <div>
-                      Avg {target.profile?.performance.avg_latency_ms} ms •
-                      p95 {target.profile?.performance.p95_latency_ms} ms •
-                      Availability {(target.profile?.performance.availability ?? 0).toFixed(3)}
+                      <div className="font-semibold text-white">{target.endpoint}</div>
+                      <div className="text-xs text-gray-400">Pool {target.pool_id} • Region {target.region} • {target.is_active ? 'Active' : 'Inactive'}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <ResidencyBadge target={target} />
                     </div>
                   </div>
-                  <div>
-                    <div className="text-gray-400 text-xs mb-1">Cost</div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    {hasCap(target, 'json') && <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">JSON</span>}
+                    {hasCap(target, 'function') && <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">Functions</span>}
+                    {hasCap(target, 'stream') && <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">Streaming</span>}
+                    {(hasCap(target, 'vision') || hasCap(target, 'multimodal')) && <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">Vision</span>}
+                    {target.profile?.quality?.strength && <span className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/40 text-sky-200">{target.profile.quality.strength}</span>}
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-200">Ctx {target.profile?.limits?.context_window_tokens ?? 8192}</span>
+                    <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">{(target.profile?.cost?.per_1k_tokens ?? 0).toFixed(3)} {target.profile?.cost?.currency}/1k</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-300">
                     <div>
-                      {(target.profile?.cost?.per_1k_tokens ?? 0).toFixed(3)} {target.profile?.cost?.currency} / 1k tokens
+                      <div className="text-gray-400 text-[10px] mb-1">Performance</div>
+                      <div>Avg {target.profile?.performance.avg_latency_ms} ms | p95 {target.profile?.performance.p95_latency_ms} ms</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 text-[10px] mb-1">Best for</div>
+                      <div>{bestFor(target).join(', ') || 'general'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 text-[10px] mb-1">Certs</div>
+                      <div className="flex flex-wrap gap-1">
+                        {(target.profile?.compliance?.certifications || []).map(cert => (
+                          <span key={cert} className="px-1.5 py-0.5 rounded bg-gray-900/60 border border-gray-700 whitespace-nowrap leading-tight">{cert}</span>
+                        ))}
+                        {!(target.profile?.compliance?.certifications || []).length && <span className="text-gray-500">n/a</span>}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-gray-400 text-xs mb-1">Best for</div>
-                    <div>{bestFor(target).join(', ') || 'general'}</div>
-                  </div>
                 </div>
-
-                <div className="mt-2 text-sm text-gray-300">
-                  <Certs target={target} />
-                  {target.profile?.tags && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Tags: {Object.keys(target.profile.tags).join(', ')}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ))}
+              ))}
+            </div>
+          </Panel>
+        );
+      })}
     </PageLayout>
   );
 }
 
 export default Models;
-

@@ -20,6 +20,7 @@ import { ModelGardenService } from './services/modelGarden';
 import { PreprocessorService } from './services/preprocessor';
 
 import { policyRoutes } from './routes/policy';
+import { CatalogService } from './services/catalog';
 import { evaluationRoutes } from './routes/evaluation';
 import { auditRoutes } from './routes/audit';
 import { routeRoutes } from './routes/routes';
@@ -65,6 +66,7 @@ const policyValidator = ajv.compile(policySchema);
 
 const authService = new AuthService();
 const policyService = new PolicyService(prisma, policyValidator);
+const catalogService = new CatalogService();
 const evaluationService = new EvaluationService();
 const auditService = new AuditService(prisma, process.env.HASH_SALT || 'default-salt');
 const routeService = new RouteService(prisma);
@@ -133,7 +135,8 @@ async function registerPluginsAndRoutes() {
   await fastify.register(policyRoutes, {
     prefix: '/api/policies',
     policyService,
-    authService
+    authService,
+    catalogService
   });
 
   await fastify.register(evaluationRoutes, {
@@ -487,8 +490,54 @@ async function seedInitialData() {
     if (existingPolicies === 0 || existingTargets === 0) {
       fastify.log.info('Initial data seeded successfully');
     }
+
+    // Ensure base policy always contains the default rules (idempotent upsert of rules)
+    await ensureBaseRulesPresent();
   } catch (error) {
     const err = error as Error;
+  }
+}
+
+async function ensureBaseRulesPresent() {
+  try {
+    const baseRuleset: any = rulesetExample;
+    const policyId = baseRuleset.policy_id;
+    if (!policyId) return;
+
+    const existing = await prisma.policy.findUnique({ where: { policy_id: policyId } });
+    if (!existing) return; // Created earlier or unavailable; nothing to merge
+
+    const currentRules: any[] = Array.isArray((existing as any).rules) ? (existing as any).rules : [];
+    const desiredRules: any[] = Array.isArray(baseRuleset.rules) ? baseRuleset.rules : [];
+
+    const desiredById = new Map<string, any>(desiredRules.map((r: any) => [r.rule_id, r]));
+    const seen = new Set<string>();
+    const merged: any[] = [];
+
+    // First, insert/replace all desired base rules in their desired order
+    for (const rule of desiredRules) {
+      if (!rule?.rule_id) continue;
+      merged.push(rule);
+      seen.add(rule.rule_id);
+    }
+
+    // Then, append any existing custom rules not part of the base set
+    for (const r of currentRules) {
+      const id = r?.rule_id;
+      if (!id || desiredById.has(id)) continue;
+      merged.push(r);
+    }
+
+    await prisma.policy.update({
+      where: { policy_id: policyId },
+      data: {
+        rules: (merged as unknown) as Prisma.InputJsonValue,
+        published_by: 'system'
+      }
+    });
+    fastify.log.info(`Synchronized base rules into policy ${policyId} (total ${merged.length})`);
+  } catch (e) {
+    fastify.log.warn('Failed to ensure base policy rules are present');
   }
 }
 

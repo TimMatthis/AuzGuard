@@ -183,6 +183,142 @@ export class RouteService {
             reasons.push(`Compliance match (${matchingTags.join(', ')}) +${complianceBoost}`);
           }
         }
+
+        // Data sovereignty / residency hard requirement
+        if (preferences?.required_data_residency) {
+          const residency = profile.compliance?.data_residency || 'unknown';
+          const deployment = (profile.tags as any)?.deployment as string | undefined;
+          const requireLocalAU = preferences.required_data_residency === 'AU_LOCAL';
+          const matches = requireLocalAU
+            ? (residency === 'AU' && (deployment === 'local' || deployment === 'onsite' || deployment === 'onprem'))
+            : residency === preferences.required_data_residency;
+          if (!matches) {
+            score -= 5000; // effectively disqualify
+            const need = requireLocalAU ? 'AU + local/onsite' : preferences.required_data_residency;
+            reasons.push(`Residency mismatch (${residency}${deployment ? '/' + deployment : ''} != ${need}) -5000`);
+          } else {
+            score += 200;
+            reasons.push(`Residency match ${requireLocalAU ? 'AU + local/onsite' : residency} +200`);
+          }
+        } else if (preferences?.preferred_data_residency?.length) {
+          const residency = profile.compliance?.data_residency || 'unknown';
+          if (preferences.preferred_data_residency.includes(residency)) {
+            score += 75;
+            reasons.push(`Preferred residency ${residency} +75`);
+          }
+        }
+
+        // Info types alignment (e.g., pii, health, financial, code)
+        if (preferences?.info_types?.length) {
+          const supported = new Set([...(profile.supported_data_classes || []), ...this.extractStringArray(profile.tags, 'info_types')]);
+          const hits = preferences.info_types.filter(t => supported.has(t));
+          if (hits.length) {
+            const boost = hits.length * 20;
+            score += boost;
+            reasons.push(`Info types supported (${hits.join(', ')}) +${boost}`);
+          } else {
+            score -= 40; // mild penalty if not aligned
+            reasons.push('Info types not preferred -40');
+          }
+        }
+
+        // Context window requirement
+        if (preferences?.required_context_window_tokens) {
+          const cap = profile.limits?.context_window_tokens ?? 8192;
+          if (cap < preferences.required_context_window_tokens) {
+            score -= 1000; // effectively disqualify by heavy penalty
+            reasons.push(`Insufficient context window (${cap} < ${preferences.required_context_window_tokens}) -1000`);
+          } else {
+            const headroom = cap - preferences.required_context_window_tokens;
+            const headroomBoost = Math.min(100, headroom / 100); // small boost for headroom
+            score += headroomBoost;
+            reasons.push(`Context headroom +${headroomBoost.toFixed(1)}`);
+          }
+        }
+
+        // Model strength preference
+        if (preferences?.model_strength) {
+          const strength = profile.quality?.strength || this.mapCostTierToStrength(this.extractStringValue(profile.tags, 'cost_tier'));
+          if (strength === preferences.model_strength) {
+            score += 60;
+            reasons.push(`Preferred strength ${strength} +60`);
+          } else {
+            // partial credit: strong>standard>lite
+            const rank = (s?: string) => (s === 'strong' ? 3 : s === 'standard' ? 2 : s === 'lite' ? 1 : 0);
+            const diff = rank(strength) - rank(preferences.model_strength);
+            score += diff * 10; // small nudge
+            reasons.push(`Strength diff ${strength ?? 'unknown'} vs ${preferences.model_strength} +${(diff*10).toFixed(0)}`);
+          }
+        }
+
+        // Latency budget
+        if (preferences?.latency_budget_ms) {
+          const p95 = profile.performance.p95_latency_ms ?? profile.performance.avg_latency_ms;
+          if (p95 > preferences.latency_budget_ms) {
+            const over = p95 - preferences.latency_budget_ms;
+            score -= Math.min(800, over / 2);
+            reasons.push(`Over latency budget by ${over}ms`);
+          } else {
+            const under = preferences.latency_budget_ms - p95;
+            const boost = Math.min(200, under / 3);
+            score += boost;
+            reasons.push(`Under latency budget +${boost.toFixed(1)}`);
+          }
+        }
+
+        // Cost cap
+        if (preferences?.max_cost_per_1k_aud) {
+          const price = Number(profile.cost?.per_1k_tokens ?? 0);
+          if (price > preferences.max_cost_per_1k_aud) {
+            score -= 1200; // disqualifying penalty
+            reasons.push(`Cost ${price} > max ${preferences.max_cost_per_1k_aud} -1200`);
+          } else {
+            const savings = preferences.max_cost_per_1k_aud - price;
+            const boost = Math.min(120, savings * 10);
+            score += boost;
+            reasons.push(`Cost advantage +${boost.toFixed(1)}`);
+          }
+        }
+
+        // Quality score
+        if (typeof preferences?.min_quality_score === 'number') {
+          const q = profile.quality?.score ?? 0;
+          if (q < preferences.min_quality_score) {
+            score -= 600;
+            reasons.push(`Quality ${q} < min ${preferences.min_quality_score} -600`);
+          } else {
+            const boost = Math.min(150, (q - preferences.min_quality_score) * 20);
+            score += boost;
+            reasons.push(`Quality advantage +${boost.toFixed(1)}`);
+          }
+        }
+
+        // Required output tokens
+        if (preferences?.required_output_tokens) {
+          const maxOut = profile.limits?.max_output_tokens ?? 2048;
+          if (maxOut < preferences.required_output_tokens) {
+            score -= 1000;
+            reasons.push(`Output cap ${maxOut} < required ${preferences.required_output_tokens} -1000`);
+          } else {
+            score += 40;
+            reasons.push('Output capacity OK +40');
+          }
+        }
+
+        // Feature requirements
+        const hasCap = (name: string) => !!(profile.capabilities?.some(c => String(c).toLowerCase().includes(name)) || (profile.tags && (profile.tags as any)[name] === true));
+        if (preferences?.requires_json_mode && !hasCap('json')) {
+          score -= 800; reasons.push('Missing JSON mode -800');
+        }
+        if (preferences?.requires_function_calling && !hasCap('function')) {
+          score -= 800; reasons.push('Missing function calling -800');
+        }
+        if (preferences?.requires_streaming && !hasCap('stream')) {
+          score -= 400; reasons.push('Missing streaming -400');
+        }
+        if (preferences?.requires_vision && !(hasCap('vision') || hasCap('multimodal'))) {
+          score -= 900; reasons.push('Missing vision/multimodal -900');
+        }
       }
 
       if (preferences?.prefer_region && target.region === preferences.prefer_region) {
@@ -227,6 +363,13 @@ export class RouteService {
     }
 
     return [];
+  }
+  private extractStringValue(tags: Record<string, unknown> | undefined, key: string): string | undefined {
+    if (!tags || typeof tags !== 'object') {
+      return undefined;
+    }
+    const value = tags[key];
+    return typeof value === 'string' ? value : undefined;
   }
   private mapDbPoolToModelPool(dbPool: any): ModelPool {
     const pool: ModelPool = {
@@ -280,9 +423,27 @@ export class RouteService {
         currency: profile.cost?.currency || 'AUD',
         per_1k_tokens: profile.cost?.per_1k_tokens ?? 0.0
       },
+      limits: {
+        context_window_tokens: profile.limits?.context_window_tokens ?? 8192,
+        max_input_tokens: profile.limits?.max_input_tokens ?? 8192,
+        max_output_tokens: profile.limits?.max_output_tokens ?? 2048
+      },
+      quality: {
+        strength: profile.quality?.strength || this.mapCostTierToStrength(profile.tags?.cost_tier),
+        score: profile.quality?.score ?? undefined
+      },
       last_benchmarked: profile.last_benchmarked || new Date().toISOString(),
       tags: profile.tags || {}
     };
+  }
+
+  private mapCostTierToStrength(tier?: string): 'lite' | 'standard' | 'strong' | undefined {
+    if (!tier) return undefined;
+    const t = String(tier).toLowerCase();
+    if (t.includes('premium') || t.includes('quality')) return 'strong';
+    if (t.includes('balanced') || t.includes('standard')) return 'standard';
+    if (t.includes('economy') || t.includes('lite')) return 'lite';
+    return undefined;
   }
 }
 

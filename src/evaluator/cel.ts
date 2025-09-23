@@ -64,6 +64,18 @@ export class CELExpressionEvaluator {
     }
 
     // Handle comparison operators
+    if (expr.includes(' >= ')) {
+      return this.evaluateComparison(expr, '>=');
+    }
+    if (expr.includes(' <= ')) {
+      return this.evaluateComparison(expr, '<=');
+    }
+    if (expr.includes(' > ')) {
+      return this.evaluateComparison(expr, '>');
+    }
+    if (expr.includes(' < ')) {
+      return this.evaluateComparison(expr, '<');
+    }
     if (expr.includes(' == ')) {
       return this.evaluateEquality(expr);
     }
@@ -76,11 +88,14 @@ export class CELExpressionEvaluator {
       return this.evaluateInOperator(expr);
     }
 
-    // Handle functions: has(), contains(), regex_match()
+    // Handle functions: has(), contains(), regex_match(), starts_with(), ends_with(), length()
     if (expr.endsWith(')')) {
       if (expr.startsWith('has(')) return this.evaluateHasFunction(expr);
       if (expr.startsWith('contains(')) return this.evaluateContainsFunction(expr);
       if (expr.startsWith('regex_match(')) return this.evaluateRegexMatchFunction(expr);
+      if (expr.startsWith('starts_with(')) return this.evaluateStartsWithFunction(expr);
+      if (expr.startsWith('ends_with(')) return this.evaluateEndsWithFunction(expr);
+      if (expr.startsWith('length(')) return this.evaluateLengthFunction(expr);
     }
 
     // Handle simple boolean literals
@@ -89,6 +104,31 @@ export class CELExpressionEvaluator {
 
     // Handle field access
     return this.evaluateFieldAccess(expr);
+  }
+
+  private evaluateComparison(expr: string, op: '>=' | '<=' | '>' | '<'): boolean {
+    const sep = ` ${op} `;
+    const parts = this.splitByOperator(expr, sep);
+    if (parts.length !== 2) throw new Error('Invalid comparison expression');
+    const left = this.resolveValue(parts[0].trim());
+    const right = this.resolveValue(parts[1].trim());
+    if (typeof left === 'number' && typeof right === 'number') {
+      switch (op) {
+        case '>=': return left >= right;
+        case '<=': return left <= right;
+        case '>': return left > right;
+        case '<': return left < right;
+      }
+    }
+    if (typeof left === 'string' && typeof right === 'string') {
+      switch (op) {
+        case '>=': return left >= right;
+        case '<=': return left <= right;
+        case '>': return left > right;
+        case '<': return left < right;
+      }
+    }
+    return false;
   }
 
   private evaluateWithParentheses(expr: string): boolean {
@@ -179,6 +219,35 @@ export class CELExpressionEvaluator {
     } catch (e) {
       throw new Error('Invalid regex pattern');
     }
+  }
+
+  private evaluateStartsWithFunction(expr: string): boolean {
+    const args = this.parseFunctionArgs(expr, 'starts_with');
+    if (args.length !== 2) throw new Error('starts_with() expects 2 arguments');
+    const value = this.resolveValue(args[0]);
+    const prefix = this.resolveValue(args[1]);
+    if (typeof value !== 'string' || typeof prefix !== 'string') return false;
+    return value.toLowerCase().startsWith(prefix.toLowerCase());
+  }
+
+  private evaluateEndsWithFunction(expr: string): boolean {
+    const args = this.parseFunctionArgs(expr, 'ends_with');
+    if (args.length !== 2) throw new Error('ends_with() expects 2 arguments');
+    const value = this.resolveValue(args[0]);
+    const suffix = this.resolveValue(args[1]);
+    if (typeof value !== 'string' || typeof suffix !== 'string') return false;
+    return value.toLowerCase().endsWith(suffix.toLowerCase());
+  }
+
+  private evaluateLengthFunction(expr: string): boolean {
+    const args = this.parseFunctionArgs(expr, 'length');
+    if (args.length !== 1) throw new Error('length() expects 1 argument');
+    const value = this.resolveValue(args[0]);
+    let len = 0;
+    if (typeof value === 'string' || Array.isArray(value)) len = (value as any).length;
+    else if (value && typeof value === 'object') len = Object.keys(value as Record<string, unknown>).length;
+    // Non-zero length considered true, zero is false (consistent with evaluator booleanization)
+    return len > 0;
   }
 
   private parseFunctionArgs(expr: string, name: string): string[] {

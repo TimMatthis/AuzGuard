@@ -132,6 +132,15 @@ export interface ModelProfile {
     currency: string;
     per_1k_tokens: number;
   };
+  limits?: {
+    context_window_tokens?: number;
+    max_input_tokens?: number;
+    max_output_tokens?: number;
+  };
+  quality?: {
+    strength?: 'lite' | 'standard' | 'strong';
+    score?: number;
+  };
   last_benchmarked: string;
   tags: Record<string, unknown>;
 }
@@ -174,6 +183,19 @@ export interface RoutingPreference {
   max_latency_ms?: number;
   cost_sensitivity?: 'low' | 'balanced' | 'quality';
   pool_id?: string;
+  info_types?: string[];
+  required_context_window_tokens?: number;
+  model_strength?: 'lite' | 'standard' | 'strong';
+  required_data_residency?: string;
+  preferred_data_residency?: string[];
+  requires_json_mode?: boolean;
+  requires_function_calling?: boolean;
+  requires_streaming?: boolean;
+  requires_vision?: boolean;
+  latency_budget_ms?: number;
+  max_cost_per_1k_aud?: number;
+  min_quality_score?: number;
+  required_output_tokens?: number;
 }
 
 export interface RoutingCandidate {
@@ -273,6 +295,17 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string;
   user: User;
+}
+
+export interface CatalogRuleSummary {
+  rule_id: string;
+  title: string;
+  description?: string;
+  category: string;
+  jurisdiction: string;
+  effect: string;
+  priority: number;
+  legal_basis?: string[];
 }
 
 export interface DashboardStats {

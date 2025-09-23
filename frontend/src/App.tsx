@@ -5,7 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
-import { Dashboard } from './pages/Dashboard'
+import { Dashboard2 as Dashboard } from './pages/Dashboard2'
 import { Policies } from './pages/Policies'
 import { PolicyEditor } from './pages/PolicyEditor'
 import { ChatPlayground } from './pages/ChatPlayground'
@@ -15,6 +15,8 @@ import { Simulator } from './pages/Simulator'
 import { Audit } from './pages/Audit'
 import { Routes as RoutesPage } from './pages/Routes'
 import { Settings } from './pages/Settings'
+import { Decisions } from './pages/Decisions'
+import { RoutingConfigurator } from './pages/RoutingConfigurator'
 
 function App() {
   return (
@@ -28,6 +30,26 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/routing-config"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <RoutingConfigurator />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/decisions"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Decisions />
               </Layout>
             </ProtectedRoute>
           }

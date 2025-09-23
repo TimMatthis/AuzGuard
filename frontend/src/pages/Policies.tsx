@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Policy, Rule, Effect } from '../types';
+import { Policy, Rule, Effect, CatalogRuleSummary } from '../types';
+import { CatalogAddModal } from '../components/CatalogAddModal';
 import { useAuth } from '../contexts/AuthContext';
 import { JSONImportModal } from '../components/JSONImportModal';
 
@@ -76,10 +77,17 @@ export function Policies() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
+  const [showAddFromCatalog, setShowAddFromCatalog] = useState(false);
+  const [preselectCatalogRule, setPreselectCatalogRule] = useState<CatalogRuleSummary | null>(null);
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
     queryFn: () => apiClient.getPolicies()
+  });
+
+  const { data: catalogRules } = useQuery({
+    queryKey: ['ruleCatalog'],
+    queryFn: () => apiClient.getRuleCatalog()
   });
 
   const createPolicyMutation = useMutation({
@@ -319,6 +327,47 @@ export function Policies() {
         </section>
 
         <section className="xl:col-span-2 space-y-6">
+          {/* Rule Catalog */}
+          <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-medium text-white">Rule Catalog</h2>
+                <p className="text-sm text-gray-400">Add described rules to the selected policy.</p>
+              </div>
+            </div>
+            {!catalogRules?.length ? (
+              <p className="text-gray-400 text-sm">No catalog rules available.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {catalogRules.map((r: CatalogRuleSummary) => (
+                  <div key={r.rule_id} className="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-400">{r.category} • {r.jurisdiction}</p>
+                        <h3 className="text-sm font-semibold text-white">{r.title}</h3>
+                        <p className="text-xs text-gray-400 mt-1">{r.rule_id}</p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded-md ${effectColors[r.effect] || 'bg-gray-700 text-gray-200'}`}>{r.effect}</span>
+                    </div>
+                    {r.description && (
+                      <p className="text-sm text-gray-300 mt-3 line-clamp-3">{r.description}</p>
+                    )}
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="text-xs text-gray-400">Priority: {r.priority}</div>
+                      <button
+                        disabled={!selectedPolicy || !canEditRules}
+                        onClick={() => { setPreselectCatalogRule(r); setShowAddFromCatalog(true); }}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md disabled:opacity-50"
+                      >
+                        Add to Policy
+                      </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          </div>
+
           <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
             <div className="space-y-5 mb-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -644,6 +693,17 @@ export function Policies() {
         errorMessage={deletePolicyError}
       />
       <JSONImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} />
+
+      {selectedPolicy && (
+        <CatalogAddModal
+          isOpen={showAddFromCatalog}
+          onClose={() => setShowAddFromCatalog(false)}
+          policyId={selectedPolicy.policy_id}
+          preselectRule={preselectCatalogRule || undefined}
+          catalogRules={catalogRules}
+          onAdded={(ruleId) => setSelectedRuleId(ruleId)}
+        />
+      )}
     </div>
   );
 }

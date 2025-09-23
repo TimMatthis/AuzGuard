@@ -139,6 +139,15 @@ export interface ModelProfile {
     currency: string;
     per_1k_tokens: number;
   };
+  limits?: {
+    context_window_tokens?: number;
+    max_input_tokens?: number;
+    max_output_tokens?: number;
+  };
+  quality?: {
+    strength?: 'lite' | 'standard' | 'strong';
+    score?: number;
+  };
   last_benchmarked: string;
   tags: Record<string, unknown>;
 }
@@ -180,6 +189,19 @@ export interface RoutingPreference {
   task_type?: string;
   max_latency_ms?: number;
   cost_sensitivity?: 'low' | 'balanced' | 'quality';
+  info_types?: string[]; // e.g., ['pii','health','financial','code']
+  required_context_window_tokens?: number;
+  model_strength?: 'lite' | 'standard' | 'strong';
+  required_data_residency?: string; // e.g., 'AU'
+  preferred_data_residency?: string[]; // boost if matches
+  requires_json_mode?: boolean;
+  requires_function_calling?: boolean;
+  requires_streaming?: boolean;
+  requires_vision?: boolean;
+  latency_budget_ms?: number; // prefer under this p95
+  max_cost_per_1k_aud?: number; // disqualify if above
+  min_quality_score?: number; // prefer models scoring above
+  required_output_tokens?: number; // ensure model can produce at least this
 }
 
 export interface RoutingCandidate {

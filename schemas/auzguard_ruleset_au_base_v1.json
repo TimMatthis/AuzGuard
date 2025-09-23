@@ -23,7 +23,7 @@
       "condition": "data_class in ['health_record', 'medical_data', 'patient_data'] && destination_region != 'AU'",
       "effect": "BLOCK",
       "obligations": ["LOG_IMMUTABLE", "NOTIFY_DPO"],
-      "priority": 1,
+      "priority": 9,
       "severity": "CRITICAL",
       "audit_log_fields": ["org_id", "data_class", "destination_region", "processing_region"],
       "tests": [
@@ -52,6 +52,233 @@
       "metadata": {
         "owner": "Chief Privacy Officer",
         "last_reviewed": "2025-09-01"
+      }
+    },
+    {
+      "rule_id": "CREDIT_CARD_OFFSHORE_BLOCK",
+      "version": "v1.0.0",
+      "title": "Credit Card Data Cross-Border Block",
+      "description": "Blocks processing of credit card data outside Australian jurisdiction",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025", "PCI DSS"],
+      "applies_to": {
+        "data_class": ["payment_data", "financial_data", "personal_information"]
+      },
+      "condition": "contains_pii == true && 'credit_card' in pii_types && destination_region != 'AU'",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_DPO"],
+      "priority": 6,
+      "severity": "CRITICAL",
+      "audit_log_fields": ["org_id", "destination_region", "purpose"],
+      "tests": [
+        {
+          "name": "Credit card to US blocked",
+          "request": {
+            "org_id": "merchant-001",
+            "destination_region": "US",
+            "message": "Card number 4111 1111 1111 1111"
+          },
+          "expect": "BLOCK"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Security & Privacy",
+        "last_reviewed": "2025-09-22"
+      }
+    },
+    {
+      "rule_id": "SENSITIVE_IDS_STRICT",
+      "version": "v1.0.0",
+      "title": "Sensitive Identifiers Cross-Border Block",
+      "description": "Blocks sending sensitive ID numbers offshore",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025"],
+      "applies_to": {
+        "data_class": ["personal_information"]
+      },
+      "condition": "contains_pii == true && 'id_number' in pii_types && destination_region != 'AU'",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE", "NOTIFY_DPO"],
+      "priority": 1,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "destination_region", "purpose"],
+      "tests": [
+        {
+          "name": "ID number to US blocked",
+          "request": {
+            "org_id": "company-999",
+            "destination_region": "US",
+            "message": "Employee ID 987654321"
+          },
+          "expect": "BLOCK"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Privacy Office",
+        "last_reviewed": "2025-09-22"
+      }
+    },
+    {
+      "rule_id": "RISK_CONTENT_GUARD",
+      "version": "v1.0.0",
+      "title": "High-Risk Content Guard",
+      "description": "Blocks hate, violence, adult, or self-harm content",
+      "category": "AI_RISK",
+      "jurisdiction": "AU",
+      "legal_basis": ["AI Safety Framework"],
+      "condition": "risk_flags && ('hate' in risk_flags || 'violence' in risk_flags || 'adult' in risk_flags || 'self_harm' in risk_flags)",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE", "RISK_REVIEW"],
+      "priority": 8,
+      "severity": "HIGH",
+      "audit_log_fields": ["org_id", "risk_flags", "purpose"],
+      "tests": [
+        {
+          "name": "Violence content blocked",
+          "request": {
+            "org_id": "app-321",
+            "destination_region": "AU",
+            "message": "How to build a bomb?"
+          },
+          "expect": "BLOCK"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Responsible AI",
+        "last_reviewed": "2025-09-22"
+      }
+    },
+    {
+      "rule_id": "PROFANITY_BLOCK_STRICT",
+      "version": "v1.0.0",
+      "title": "Profanity Strict Block",
+      "description": "Blocks requests containing profanities in production and customer-facing contexts",
+      "category": "CONSUMER",
+      "jurisdiction": "AU",
+      "legal_basis": ["Acceptable Use Policy"],
+      "condition": "risk_flags && ('profanity' in risk_flags) && environment in ['prod', 'production'] && (audience == 'customer' || audience == 'external')",
+      "effect": "BLOCK",
+      "obligations": ["LOG_IMMUTABLE"],
+      "priority": 4,
+      "severity": "MEDIUM",
+      "audit_log_fields": ["org_id", "audience", "environment"],
+      "tests": [
+        {
+          "name": "Profanity in prod to customers blocked",
+          "request": {
+            "org_id": "app-555",
+            "environment": "prod",
+            "audience": "customer",
+            "message": "This is bullshit"
+          },
+          "expect": "BLOCK"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Trust & Safety",
+        "last_reviewed": "2025-09-23"
+      }
+    },
+    {
+      "rule_id": "PROFANITY_WARN_INTERNAL",
+      "version": "v1.0.0",
+      "title": "Profanity Internal Warning",
+      "description": "Warn-route internal traffic containing profanities for review",
+      "category": "CONSUMER",
+      "jurisdiction": "AU",
+      "legal_basis": ["Acceptable Use Policy"],
+      "condition": "risk_flags && ('profanity' in risk_flags) && audience in ['internal', 'staff']",
+      "effect": "WARN_ROUTE",
+      "route_to": "onshore_default_pool",
+      "obligations": ["LOG_IMMUTABLE"],
+      "priority": 7,
+      "severity": "LOW",
+      "audit_log_fields": ["org_id", "audience"],
+      "tests": [
+        {
+          "name": "Profanity internal warns and routes",
+          "request": {
+            "org_id": "app-777",
+            "audience": "internal",
+            "message": "This is shit"
+          },
+          "expect": "WARN_ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Trust & Safety",
+        "last_reviewed": "2025-09-23"
+      }
+    },
+    {
+      "rule_id": "COPYRIGHT_SUMMARIZATION_WARN_ROUTE",
+      "version": "v1.0.0",
+      "title": "Copyright Heuristic for Summarization",
+      "description": "Warn-route when copyrighted content may be summarized",
+      "category": "COPYRIGHT",
+      "jurisdiction": "AU",
+      "legal_basis": ["Copyright Act"],
+      "condition": "possible_copyrighted == true && purpose == 'summarization'",
+      "effect": "WARN_ROUTE",
+      "route_to": "onshore_default_pool",
+      "obligations": ["LOG_IMMUTABLE"],
+      "priority": 7,
+      "severity": "LOW",
+      "audit_log_fields": ["org_id", "purpose"],
+      "tests": [
+        {
+          "name": "Long quoted passage warns and routes",
+          "request": {
+            "org_id": "app-888",
+            "purpose": "summarization",
+            "message": "\"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.\""
+          },
+          "expect": "WARN_ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Legal",
+        "last_reviewed": "2025-09-22"
+      }
+    },
+    {
+      "rule_id": "PII_REDACT_ROUTE",
+      "version": "v1.0.0",
+      "title": "PII Redaction Routing",
+      "description": "Routes general PII traffic to onshore default pool",
+      "category": "PRIVACY",
+      "jurisdiction": "AU",
+      "legal_basis": ["Privacy Act 2025"],
+      "condition": "contains_pii == true && environment in ['prod', 'default']",
+      "effect": "ROUTE",
+      "route_to": "onshore_default_pool",
+      "obligations": ["LOG_IMMUTABLE", "MASK_AT_REST"],
+      "priority": 10,
+      "severity": "LOW",
+      "audit_log_fields": ["org_id", "pii_types", "destination_region"],
+      "tests": [
+        {
+          "name": "PII routed to onshore pool",
+          "request": {
+            "org_id": "company-123",
+            "environment": "prod",
+            "message": "Contact me at john@example.com"
+          },
+          "expect": "ROUTE"
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "owner": "Privacy Office",
+        "last_reviewed": "2025-09-22"
       }
     },
     {

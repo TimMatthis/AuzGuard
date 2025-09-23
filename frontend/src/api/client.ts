@@ -12,7 +12,8 @@ import {
   ValidationError,
   RoutingRequest,
   RoutingResponse,
-  GatewayDashboardMetrics
+  GatewayDashboardMetrics,
+  Rule
 } from '../types';
 
 const API_BASE = '/api';
@@ -60,6 +61,25 @@ class ApiClient {
 
   async getPolicy(policyId: string): Promise<Policy> {
     return this.request<Policy>(`/policies/${policyId}`);
+  }
+
+  // Rule catalog endpoints
+  async getRuleCatalog(): Promise<import('../types').CatalogRuleSummary[]> {
+    return this.request<import('../types').CatalogRuleSummary[]>('/policies/rules/catalog');
+  }
+
+  async getRuleFromCatalog(ruleId: string): Promise<Rule> {
+    return this.request<Rule>(`/policies/rules/catalog/${ruleId}`);
+  }
+
+  async addRulesFromCatalog(
+    policyId: string,
+    payload: { rule_ids: string[]; overrides?: Record<string, Partial<Rule>>; behavior?: 'replace' | 'skip' | 'duplicate' }
+  ): Promise<Policy> {
+    return this.request<Policy>(`/policies/${policyId}/rules/add-from-catalog`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   async createPolicy(policy: Policy): Promise<Policy> {
@@ -224,6 +244,21 @@ class ApiClient {
 
   async getRoutingMetrics(): Promise<GatewayDashboardMetrics> {
     return this.request<GatewayDashboardMetrics>('/routes/metrics/summary');
+  }
+
+  async previewRanking(poolId: string, preferences: import('../types').RoutingPreference): Promise<import('../types').RoutingDecision> {
+    return this.request<import('../types').RoutingDecision>(`/routes/pools/${poolId}/preview-ranking`, {
+      method: 'POST',
+      body: JSON.stringify({ preferences }),
+    });
+  }
+
+  async getRoutingPaths(params: { from?: string; to?: string } = {}): Promise<{ nodes: any[]; edges: { source: string; target: string; count: number }[]; node_counts: Record<string, number> }> {
+    const qs = new URLSearchParams();
+    if (params.from) qs.append('from', params.from);
+    if (params.to) qs.append('to', params.to);
+    const endpoint = qs.toString() ? `/routes/metrics/paths?${qs.toString()}` : '/routes/metrics/paths';
+    return this.request(endpoint);
   }
 
   // Override endpoints

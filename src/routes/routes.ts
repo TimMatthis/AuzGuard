@@ -206,6 +206,44 @@ export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteO
     return modelGardenService.getDashboardMetrics();
   });
 
+  // GET /api/routes/metrics/paths - Path graph for routing flows (policy -> rule -> pool -> target)
+  fastify.get('/metrics/paths', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = extractUser(request);
+    if (!authService.canPerformAction(user.role, 'read')) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
+    }
+
+    const from = request.query && (request.query as any)['from'] ? new Date(String((request.query as any)['from'])) : undefined;
+    const to = request.query && (request.query as any)['to'] ? new Date(String((request.query as any)['to'])) : undefined;
+
+    const graph = await modelGardenService.getRoutingPathGraph({ from, to });
+    return graph;
+  });
+
+  // POST /api/routes/pools/:poolId/preview-ranking - Preview ranking given preferences
+  fastify.post('/pools/:poolId/preview-ranking', async (
+    request: FastifyRequest<{ Params: RouteParams; Body: { preferences?: RoutingPreference } }>,
+    reply: FastifyReply
+  ) => {
+    const user = extractUser(request);
+    if (!authService.canPerformAction(user.role, 'read')) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
+    }
+
+    const pool = await routeService.getModelPoolById(request.params.poolId);
+    if (!pool) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Model pool not found' } });
+    }
+
+    const targets = await routeService.getRouteTargetsForPool(request.params.poolId);
+    if (!targets.length) {
+      return reply.status(400).send({ error: { code: 'ROUTING_ERROR', message: 'No active targets for pool' } });
+    }
+
+    const decision = routeService.buildRoutingDecision(pool, targets, request.body.preferences);
+    return decision;
+  });
+
   // POST /api/routes/execute - Execute routing decision and invoke downstream model
   fastify.post('/execute', async (request: FastifyRequest<{ Body: RoutingRequest }>, reply: FastifyReply) => {
     try {

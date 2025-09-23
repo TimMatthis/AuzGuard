@@ -2,6 +2,7 @@
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Policy, Rule, ValidationError } from '../types';
+import { PreprocessorService } from './preprocessor';
 
 export class PolicyService {
   constructor(
@@ -130,8 +131,11 @@ export class PolicyService {
       trace?: Array<{ rule_id: string; matched: boolean; reason?: string }>;
     }> = [];
 
+    const preprocessor = new PreprocessorService();
+
     for (const test of rule.tests || []) {
-      const evaluation = evaluatePolicy(policy as any, test.request as Record<string, unknown>);
+      const enriched = preprocessor.enrich(test.request as Record<string, unknown>);
+      const evaluation = evaluatePolicy(policy as any, enriched);
       const matchedThisRule = evaluation.matched_rule === rule.rule_id;
       const passed = matchedThisRule && evaluation.decision === test.expect;
 

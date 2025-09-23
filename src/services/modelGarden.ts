@@ -359,6 +359,76 @@ export class ModelGardenService {
     }
   }
 
+  async getRoutingPathGraph(params: { from?: Date; to?: Date } = {}) {
+    const where: any = {};
+    if (params.from || params.to) {
+      where.created_at = {};
+      if (params.from) where.created_at.gte = params.from;
+      if (params.to) where.created_at.lte = params.to;
+    } else {
+      const since = new Date();
+      since.setHours(0, 0, 0, 0);
+      where.created_at = { gte: since };
+    }
+
+    // Group by policy -> rule -> pool -> target to build a simple path graph
+    const groups = await this.prisma.modelInvocation.groupBy({
+      by: ['policy_id', 'rule_id', 'model_pool', 'provider', 'model_identifier', 'decision'],
+      where,
+      _count: { _all: true }
+    });
+
+    type Node = { id: string; type: 'policy'|'rule'|'pool'|'target'; label: string };
+    type Edge = { source: string; target: string; count: number };
+    const nodes = new Map<string, Node>();
+    const edges: Edge[] = [];
+    const nodeCounts = new Map<string, number>();
+
+    for (const g of groups) {
+      const policyId = g.policy_id || 'unknown_policy';
+      const ruleId = g.rule_id || 'no_match';
+      const poolId = g.model_pool || 'unknown_pool';
+      const targetId = `${g.provider}:${g.model_identifier}`;
+      const count = g._count?._all ?? 0;
+      const decision = (g as any).decision as string | undefined;
+
+      const policyNodeId = `policy:${policyId}`;
+      const ruleNodeId = `rule:${ruleId}`;
+      const poolNodeId = `pool:${poolId}`;
+      const targetNodeId = `target:${targetId}`;
+
+      if (!nodes.has(policyNodeId)) nodes.set(policyNodeId, { id: policyNodeId, type: 'policy', label: policyId });
+      if (!nodes.has(ruleNodeId)) nodes.set(ruleNodeId, { id: ruleNodeId, type: 'rule', label: ruleId });
+      if (!nodes.has(poolNodeId)) nodes.set(poolNodeId, { id: poolNodeId, type: 'pool', label: poolId });
+      if (!nodes.has(targetNodeId)) nodes.set(targetNodeId, { id: targetNodeId, type: 'target', label: targetId });
+
+      // Edges policy->rule, rule->pool, pool->target accumulate counts
+      edges.push({ source: policyNodeId, target: ruleNodeId, count, decision } as any);
+      edges.push({ source: ruleNodeId, target: poolNodeId, count, decision } as any);
+      edges.push({ source: poolNodeId, target: targetNodeId, count, decision } as any);
+
+      // Node totals
+      nodeCounts.set(ruleNodeId, (nodeCounts.get(ruleNodeId) || 0) + count);
+      nodeCounts.set(poolNodeId, (nodeCounts.get(poolNodeId) || 0) + count);
+      nodeCounts.set(targetNodeId, (nodeCounts.get(targetNodeId) || 0) + count);
+      nodeCounts.set(policyNodeId, (nodeCounts.get(policyNodeId) || 0) + count);
+    }
+
+    // Combine duplicate edges by (source,target)
+    const edgeMap = new Map<string, any>();
+    for (const e of edges as any[]) {
+      const key = `${e.source}->${e.target}->${e.decision || 'any'}`;
+      const prev = edgeMap.get(key);
+      if (prev) prev.count += e.count; else edgeMap.set(key, { ...e });
+    }
+
+    return {
+      nodes: Array.from(nodes.values()),
+      edges: Array.from(edgeMap.values()),
+      node_counts: Object.fromEntries(nodeCounts)
+    };
+  }
+
   private resolveConnector(target: RouteTarget): ModelConnector | undefined {
     if (this.connectors.has(target.provider)) {
       return this.connectors.get(target.provider);

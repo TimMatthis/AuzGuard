@@ -9,6 +9,7 @@ import { RuleConditionTab } from '../components/RuleConditionTab';
 import { RuleObligationsTab } from '../components/RuleObligationsTab';
 import { RuleTestsTab } from '../components/RuleTestsTab';
 import { RuleBuilder } from '../components/RuleBuilder';
+import { CatalogAddModal } from '../components/CatalogAddModal';
 
 export function PolicyEditor() {
   const { policyId, ruleId } = useParams<{ policyId: string; ruleId?: string }>();
@@ -23,6 +24,7 @@ export function PolicyEditor() {
   const [showRuleBuilder, setShowRuleBuilder] = useState(
     (location.state as any)?.showRuleBuilder || false
   );
+  const [showAddFromCatalog, setShowAddFromCatalog] = useState(false);
 
   const { data: policy, isLoading } = useQuery({
     queryKey: ['policy', policyId],
@@ -171,6 +173,14 @@ export function PolicyEditor() {
           <p className="text-gray-400">{viewRule.rule_id} • {policy.title}</p>
         </div>
         <div className="flex space-x-3">
+          {hasPermission('edit_rules') && (
+            <button
+              onClick={() => setShowAddFromCatalog(true)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+            >
+              Add From Catalog
+            </button>
+          )}
           {isEditing ? (
             <>
               <button
@@ -270,6 +280,16 @@ export function PolicyEditor() {
           />
         )}
       </div>
+
+      <CatalogAddModal
+        isOpen={showAddFromCatalog}
+        onClose={() => setShowAddFromCatalog(false)}
+        policyId={policy.policy_id}
+        onAdded={(rid) => {
+          // switch to that rule
+          navigate(`/policies/${policyId}/rules/${rid}`);
+        }}
+      />
     </div>
   );
 }
