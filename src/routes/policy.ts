@@ -199,12 +199,15 @@ export async function policyRoutes(fastify: FastifyInstance, options: PolicyRout
       await policyService.deletePolicy(request.params.policyId);
       return { success: true };
     } catch (error) {
-      return reply.status(400).send({ 
-        error: { 
-          code: 'VALIDATION_ERROR', 
-          message: error instanceof Error ? error.message : 'Unknown error' 
-        } 
-      });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      const lower = message.toLowerCase();
+      if (lower.includes('not found')) {
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message } });
+      }
+      if (lower.includes('dependent')) {
+        return reply.status(409).send({ error: { code: 'CONFLICT', message } });
+      }
+      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message } });
     }
   });
 }

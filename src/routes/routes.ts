@@ -7,7 +7,7 @@ import { EvaluationService } from '../services/evaluation';
 import { PolicyService } from '../services/policy';
 import { AuditService } from '../services/audit';
 import { ModelGardenService } from '../services/modelGarden';
-import { ModelPool, RouteTarget, RoutingRequest, RoutingResponse, UserRole } from '../types';
+import { ModelPool, RouteTarget, RoutingRequest, RoutingResponse, UserRole, RoutingPreference } from '../types';
 import { PreprocessorService } from '../services/preprocessor';
 
 interface RouteParams {

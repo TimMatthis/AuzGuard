@@ -155,12 +155,21 @@ export class CELExpressionEvaluator {
 
   private evaluateLogicalAnd(expr: string): boolean {
     const parts = this.splitByOperator(expr, ' && ');
-    return parts.every(part => this.evaluateExpression(part.trim()));
+    for (const raw of parts) {
+      const part = raw.trim();
+      const val = this.evaluateExpression(part);
+      if (!val) return false; // short-circuit
+    }
+    return true;
   }
 
   private evaluateLogicalOr(expr: string): boolean {
     const parts = this.splitByOperator(expr, ' || ');
-    return parts.some(part => this.evaluateExpression(part.trim()));
+    for (const raw of parts) {
+      const part = raw.trim();
+      if (this.evaluateExpression(part)) return true; // short-circuit
+    }
+    return false;
   }
 
   private evaluateEquality(expr: string): boolean {
@@ -185,7 +194,8 @@ export class CELExpressionEvaluator {
     const collection = this.resolveValue(parts[1].trim());
 
     if (!Array.isArray(collection)) {
-      throw new Error('Right-hand side of in operator must be an array');
+      // Treat non-array RHS as empty collection to avoid noisy errors in compound AND conditions
+      return false;
     }
 
     return collection.some(item => this.deepEqual(item, value));

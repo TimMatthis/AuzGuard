@@ -80,9 +80,25 @@ export class PolicyService {
   }
 
   async deletePolicy(policyId: string): Promise<void> {
-    await this.prisma.policy.delete({
-      where: { policy_id: policyId }
-    });
+    try {
+      // Best-effort cascade: remove dependent records that may reference the policy
+      if ((this.prisma as any).modelInvocation) {
+        await (this.prisma as any).modelInvocation.deleteMany({ where: { policy_id: policyId } });
+      }
+
+      await this.prisma.policy.delete({
+        where: { policy_id: policyId }
+      });
+    } catch (err: any) {
+      const code = err?.code || err?.name;
+      if (code === 'P2025') {
+        throw new Error('Policy not found');
+      }
+      if (code === 'P2003') {
+        throw new Error('Cannot delete policy due to dependent records. Remove related invocations or disable the policy.');
+      }
+      throw new Error(err?.message || 'Failed to delete policy');
+    }
   }
 
   async validatePolicy(policy: Policy): Promise<{ valid: boolean; errors: ValidationError[] }> {
