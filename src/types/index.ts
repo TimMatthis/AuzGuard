@@ -204,6 +204,38 @@ export interface RoutingPreference {
   required_output_tokens?: number; // ensure model can produce at least this
 }
 
+// Routing profile (saved route config that can be assigned to groups)
+export interface RouteProfile {
+  id: string;
+  name: string;
+  // Basic toggles for simplified setup
+  basic?: {
+    optimize_speed?: boolean;
+    optimize_cost?: boolean;
+    optimize_performance?: boolean;
+    keep_onshore?: boolean; // AU residency
+    dynamic_by_context?: boolean;
+  };
+  // Full advanced preferences powering ranking
+  preferences: RoutingPreference;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserGroup {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupRouteBinding {
+  id: string;
+  group_id: string;
+  route_profile_id: string;
+  created_at: string;
+}
+
 export interface RoutingCandidate {
   target: RouteTarget;
   score: number;

@@ -252,6 +252,31 @@ class ApiClient {
       body: JSON.stringify({ preferences }),
     });
   }
+  // Routing profiles & groups
+  async getRouteProfiles(): Promise<import('../types').RouteProfile[]> {
+    return this.request('/routes/config/profiles');
+  }
+  async createRouteProfile(payload: { name: string; basic?: import('../types').RouteProfile['basic']; preferences?: import('../types').RoutingPreference }): Promise<import('../types').RouteProfile> {
+    return this.request('/routes/config/profiles', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async updateRouteProfile(id: string, patch: Partial<Omit<import('../types').RouteProfile, 'id' | 'created_at'>>): Promise<import('../types').RouteProfile> {
+    return this.request(`/routes/config/profiles/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+  }
+  async deleteRouteProfile(id: string): Promise<void> {
+    return this.request(`/routes/config/profiles/${id}`, { method: 'DELETE' });
+  }
+  async getUserGroups(): Promise<Array<import('../types').UserGroup & { route_profile_id?: string }>> {
+    return this.request('/routes/config/groups');
+  }
+  async createUserGroup(name: string): Promise<import('../types').UserGroup> {
+    return this.request('/routes/config/groups', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async deleteUserGroup(id: string): Promise<void> {
+    return this.request(`/routes/config/groups/${id}`, { method: 'DELETE' });
+  }
+  async assignProfileToGroup(groupId: string, route_profile_id: string): Promise<any> {
+    return this.request(`/routes/config/groups/${groupId}/assign`, { method: 'POST', body: JSON.stringify({ route_profile_id }) });
+  }
 
   async getRoutingPaths(params: { from?: string; to?: string } = {}): Promise<{ nodes: any[]; edges: { source: string; target: string; count: number }[]; node_counts: Record<string, number> }> {
     const qs = new URLSearchParams();

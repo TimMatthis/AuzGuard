@@ -72,6 +72,7 @@ export function Policies() {
   const queryClient = useQueryClient();
   const canEditRules = hasPermission('edit_rules');
   const canPublishRules = hasPermission('publish_rules');
+  const canManageSettings = hasPermission('manage_settings');
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -79,6 +80,8 @@ export function Policies() {
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
   const [showAddFromCatalog, setShowAddFromCatalog] = useState(false);
   const [preselectCatalogRule, setPreselectCatalogRule] = useState<CatalogRuleSummary | null>(null);
+  // UI mode: build (add rules) or ladder (view evaluation ladder)
+  const [mode, setMode] = useState<'build' | 'ladder'>('build');
 
   const { data: policies, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -110,6 +113,7 @@ export function Policies() {
       queryClient.invalidateQueries({ queryKey: ['policies'] });
       setSelectedPolicyId(createdPolicy.policy_id);
       setShowCreateModal(false);
+      setMode('build');
     }
   });
 
@@ -179,6 +183,12 @@ export function Policies() {
     };
 
     updatePolicyMutation.mutate(updatedPolicy);
+  };
+
+  const removeRule = (ruleId: string) => {
+    if (!selectedPolicy) return;
+    const updated = removeRuleFromPolicy(selectedPolicy, ruleId);
+    updatePolicyMutation.mutate(updated);
   };
 
   const handleExportPolicy = (policy: Policy) => {
@@ -274,7 +284,15 @@ export function Policies() {
               Export Policy
             </button>
           )}
-          {canPublishRules && selectedPolicy && (
+          {selectedPolicy && (
+            <button
+              onClick={() => setMode(mode === 'build' ? 'ladder' : 'build')}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors"
+            >
+              {mode === 'build' ? 'Show Rules Ladder' : 'Back to Add Rules'}
+            </button>
+          )}
+          {canManageSettings && selectedPolicy && (
             <button
               onClick={() => setPolicyToDelete(selectedPolicy)}
               className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-md transition-colors"
@@ -327,47 +345,108 @@ export function Policies() {
         </section>
 
         <section className="xl:col-span-2 space-y-6">
-          {/* Rule Catalog */}
-          <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-medium text-white">Rule Catalog</h2>
-                <p className="text-sm text-gray-400">Add described rules to the selected policy.</p>
+          {/* Build mode: split screen with Rule Catalog and Policy Builder */}
+          {mode === 'build' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-medium text-white">Rule Catalog</h2>
+                  <p className="text-sm text-gray-400">Add described rules to the selected policy.</p>
+                </div>
               </div>
-            </div>
-            {!catalogRules?.length ? (
-              <p className="text-gray-400 text-sm">No catalog rules available.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {catalogRules.map((r: CatalogRuleSummary) => (
-                  <div key={r.rule_id} className="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-400">{r.category} • {r.jurisdiction}</p>
-                        <h3 className="text-sm font-semibold text-white">{r.title}</h3>
-                        <p className="text-xs text-gray-400 mt-1">{r.rule_id}</p>
+              {!catalogRules?.length ? (
+                <p className="text-gray-400 text-sm">No catalog rules available.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {catalogRules.map((r: CatalogRuleSummary) => (
+                    <div key={r.rule_id} className="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-400">{r.category} • {r.jurisdiction}</p>
+                          <h3 className="text-sm font-semibold text-white">{r.title}</h3>
+                          <p className="text-xs text-gray-400 mt-1">{r.rule_id}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-md ${effectColors[r.effect] || 'bg-gray-700 text-gray-200'}`}>{r.effect}</span>
                       </div>
-                      <span className={`px-2 py-1 text-xs rounded-md ${effectColors[r.effect] || 'bg-gray-700 text-gray-200'}`}>{r.effect}</span>
+                      {r.description && (
+                        <p className="text-sm text-gray-300 mt-3 line-clamp-3">{r.description}</p>
+                      )}
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="text-xs text-gray-400">Priority: {r.priority}</div>
+                        <button
+                          disabled={!selectedPolicy || !canEditRules}
+                          onClick={() => { setPreselectCatalogRule(r); setShowAddFromCatalog(true); }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md disabled:opacity-50"
+                        >
+                          Add to Policy
+                        </button>
+                      </div>
                     </div>
-                    {r.description && (
-                      <p className="text-sm text-gray-300 mt-3 line-clamp-3">{r.description}</p>
-                    )}
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="text-xs text-gray-400">Priority: {r.priority}</div>
-                      <button
-                        disabled={!selectedPolicy || !canEditRules}
-                        onClick={() => { setPreselectCatalogRule(r); setShowAddFromCatalog(true); }}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md disabled:opacity-50"
-                      >
-                        Add to Policy
-                      </button>
+                  ))}
+                </div>
+              )}
+              </div>
+
+              {/* Policy Builder: quick view of rules currently in policy with ability to remove/enable */}
+              <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-medium text-white">Policy Builder</h2>
+                    <p className="text-sm text-gray-400">Current rules in this policy. Remove or toggle as needed.</p>
+                  </div>
+                  <div>
+                    <button
+                      onClick={() => setMode('ladder')}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-md"
+                    >
+                      Show Rules Ladder
+                    </button>
                   </div>
                 </div>
-              ))}
+
+                {!selectedPolicy || selectedPolicy.rules.length === 0 ? (
+                  <p className="text-gray-400 text-sm">No rules added yet. Use the Rule Catalog to add rules.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {selectedPolicy.rules
+                      .slice()
+                      .sort((a, b) => a.priority - b.priority)
+                      .map((r) => (
+                        <li key={r.rule_id} className="rounded border border-gray-700 bg-gray-900/60 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-white">{r.title || r.rule_id}</div>
+                              <div className="text-xs text-gray-400">Priority: {r.priority} • Effect: {r.effect}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-300 flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={r.enabled !== false}
+                                  onChange={(e) => toggleRule(r, e.target.checked)}
+                                />
+                                Enabled
+                              </label>
+                              <button
+                                onClick={() => removeRule(r.rule_id)}
+                                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-500 text-white rounded"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
-          </div>
 
+          {/* Ladder mode: show full evaluation ladder and details */}
+          {mode === 'ladder' && (
+          <>
           <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
             <div className="space-y-5 mb-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -520,7 +599,7 @@ export function Policies() {
               })}
             </ol>
           </div>
-
+          
           <div className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-6">
             {selectedRule ? (
               <div className="space-y-4">
@@ -675,6 +754,8 @@ export function Policies() {
               </div>
             )}
           </div>
+          </>
+          )}
         </section>
       </div>
 
@@ -706,6 +787,14 @@ export function Policies() {
       )}
     </div>
   );
+}
+
+// Helper to remove a rule from the currently selected policy (by id)
+function removeRuleFromPolicy(policy: Policy, ruleId: string): Policy {
+  return {
+    ...policy,
+    rules: policy.rules.filter(r => r.rule_id !== ruleId)
+  };
 }
 
 

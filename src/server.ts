@@ -25,6 +25,8 @@ import { evaluationRoutes } from './routes/evaluation';
 import { auditRoutes } from './routes/audit';
 import { routeRoutes } from './routes/routes';
 import { overrideRoutes } from './routes/overrides';
+import { routingConfigRoutes } from './routes/routingConfig';
+import { RoutingProfilesService } from './services/routingProfiles';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -72,6 +74,7 @@ const auditService = new AuditService(prisma, process.env.HASH_SALT || 'default-
 const routeService = new RouteService(prisma);
 const modelGardenService = new ModelGardenService(prisma);
 const preprocessorService = new PreprocessorService();
+const routingProfilesService = new RoutingProfilesService();
 
 // Create Fastify instance
 const fastify = Fastify({
@@ -161,6 +164,12 @@ async function registerPluginsAndRoutes() {
     auditService,
     modelGardenService,
     preprocessorService
+  });
+
+  await fastify.register(routingConfigRoutes, {
+    prefix: '/api/routes/config',
+    authService,
+    profilesService: routingProfilesService
   });
 
   await fastify.register(overrideRoutes, {

@@ -58,7 +58,7 @@ export function ChatUI() {
   const send = () => {
     const text = input.trim();
     if (!text) return;
-    const nextMsgs = [...msgs, { id: `u-${Date.now()}`, role: 'user', content: text }];
+    const nextMsgs: ChatMsg[] = [...msgs, { id: `u-${Date.now()}`, role: 'user' as ChatRole, content: text }];
     setMsgs(nextMsgs);
     setInput('');
 
@@ -222,4 +222,3 @@ function extractAssistantText(res: RoutingResponse): string | undefined {
 }
 
 export default ChatUI;
-

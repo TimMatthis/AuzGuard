@@ -359,3 +359,26 @@ export interface GatewayDashboardMetrics {
   policy_violation_breakdown: PolicyViolationSlice[];
   model_usage: ModelUsageSlice[];
 }
+
+// Routing Profiles & Groups (frontend types mirroring backend)
+export interface RouteProfile {
+  id: string;
+  name: string;
+  basic?: {
+    optimize_speed?: boolean;
+    optimize_cost?: boolean;
+    optimize_performance?: boolean;
+    keep_onshore?: boolean;
+    dynamic_by_context?: boolean;
+  };
+  preferences: RoutingPreference;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserGroup {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
