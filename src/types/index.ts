@@ -208,6 +208,7 @@ export interface RoutingPreference {
 export interface RouteProfile {
   id: string;
   name: string;
+  pool_id?: string;
   // Basic toggles for simplified setup
   basic?: {
     optimize_speed?: boolean;
@@ -227,6 +228,11 @@ export interface UserGroup {
   name: string;
   created_at: string;
   updated_at: string;
+  // Optional assignments/preferences
+  default_pool_id?: string;
+  allowed_pools?: string[];
+  default_policy_id?: string;
+  allowed_policies?: string[];
 }
 
 export interface GroupRouteBinding {

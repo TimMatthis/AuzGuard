@@ -47,7 +47,7 @@ export class RoutingProfilesService {
     return data.groups.map(g => ({ ...g, route_profile_id: byGroup.get(g.id) }));
   }
 
-  createProfile(input: { name: string; basic?: RouteProfile['basic']; preferences?: RoutingPreference }): RouteProfile {
+  createProfile(input: { name: string; basic?: RouteProfile['basic']; preferences?: RoutingPreference; pool_id?: string }): RouteProfile {
     const data = this.read();
     const now = new Date().toISOString();
     const profile: RouteProfile = {
@@ -55,6 +55,7 @@ export class RoutingProfilesService {
       name: input.name,
       basic: input.basic || {},
       preferences: input.preferences || {},
+      pool_id: input.pool_id,
       created_at: now,
       updated_at: now
     };
@@ -99,6 +100,28 @@ export class RoutingProfilesService {
     data.groups = data.groups.filter(g => g.id !== id);
     data.bindings = data.bindings.filter(b => b.group_id !== id);
     this.write(data);
+  }
+
+  updateGroup(id: string, patch: Partial<UserGroup> & { route_profile_id?: string }): UserGroup {
+    const data = this.read();
+    const idx = data.groups.findIndex(g => g.id === id);
+    if (idx < 0) throw new Error('Group not found');
+
+    const { route_profile_id, ...rest } = patch as any;
+    const next: UserGroup = { ...data.groups[idx], ...(rest as any), updated_at: new Date().toISOString() };
+    data.groups[idx] = next;
+
+    if (typeof route_profile_id !== 'undefined') {
+      // replace existing binding for this group
+      data.bindings = data.bindings.filter(b => b.group_id !== id);
+      if (route_profile_id) {
+        const binding: GroupRouteBinding = { id: `gb_${Date.now().toString(36)}`, group_id: id, route_profile_id, created_at: new Date().toISOString() };
+        data.bindings.push(binding);
+      }
+    }
+
+    this.write(data);
+    return next;
   }
 
   assignProfileToGroup(groupId: string, profileId: string): GroupRouteBinding {

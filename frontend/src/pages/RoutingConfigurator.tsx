@@ -8,7 +8,6 @@ export function RoutingConfigurator() {
   const queryClient = useQueryClient();
   const { data: pools } = useQuery<ModelPool[]>({ queryKey: ['modelPools'], queryFn: () => apiClient.getModelPools() });
   const { data: profiles } = useQuery<RouteProfile[]>({ queryKey: ['routeProfiles'], queryFn: () => apiClient.getRouteProfiles() });
-  const { data: groups } = useQuery({ queryKey: ['userGroups'], queryFn: () => apiClient.getUserGroups() });
   const [selectedPoolId, setSelectedPoolId] = React.useState<string>('');
   const selectedPool = React.useMemo(() => pools?.find(p => p.pool_id === (selectedPoolId || pools?.[0]?.pool_id)) || pools?.[0], [pools, selectedPoolId]);
 
@@ -78,17 +77,7 @@ export function RoutingConfigurator() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['routeProfiles'] }); setProfileName(''); }
   });
 
-  const assignMutation = useMutation({
-    mutationFn: async ({ groupId, route_profile_id }: { groupId: string; route_profile_id: string }) => {
-      return apiClient.assignProfileToGroup(groupId, route_profile_id);
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['userGroups'] }); }
-  });
-
-  const createGroupMutation = useMutation({
-    mutationFn: (name: string) => apiClient.createUserGroup(name),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['userGroups'] })
-  });
+  // no group editing on this page
 
   return (
     <div className="space-y-6">
@@ -266,6 +255,9 @@ export function RoutingConfigurator() {
           </button>
           <div className="flex items-center gap-2">
             <input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Route name (e.g., Default, Developers)" className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white" />
+            <select value={selectedPoolId} onChange={(e) => setSelectedPoolId(e.target.value)} className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white">
+              {pools?.map(p => (<option key={p.pool_id} value={p.pool_id}>{p.pool_id}</option>))}
+            </select>
             <button onClick={() => createProfileMutation.mutate()} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md" disabled={createProfileMutation.isPending}>
               {createProfileMutation.isPending ? 'Saving…' : 'Save as Route'}
             </button>
@@ -276,53 +268,21 @@ export function RoutingConfigurator() {
         </div>
       </section>
 
-      {/* Saved profiles and group assignment */}
+      {/* Saved profiles */}
       <section className="bg-gray-800 border border-gray-800 rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h2 className="text-lg font-medium text-white mb-2">Saved Routes</h2>
-            <div className="space-y-2">
-              {(profiles || []).map(p => (
-                <div key={p.id} className="rounded border border-gray-700 bg-gray-900/60 p-3 flex items-center justify-between">
-                  <div className="text-sm text-white">{p.name}</div>
-                  <div className="text-xs text-gray-400">{Object.keys(p.preferences || {}).length} prefs</div>
-                </div>
-              ))}
-              {!(profiles||[]).length && <div className="text-sm text-gray-400">No routes saved yet.</div>}
+        <h2 className="text-lg font-medium text-white mb-2">Saved Routes</h2>
+        <div className="space-y-2">
+          {(profiles || []).map(p => (
+            <div key={p.id} className="rounded border border-gray-700 bg-gray-900/60 p-3 flex items-center justify-between">
+              <div className="text-sm text-white">{p.name}</div>
+              <div className="text-xs text-gray-400">Pool: {p.pool_id || 'any'} • {Object.keys(p.preferences || {}).length} prefs</div>
             </div>
-          </div>
-          <div>
-            <h2 className="text-lg font-medium text-white mb-2">User Groups</h2>
-            <GroupManager
-              groups={(groups as any) || []}
-              profiles={profiles || []}
-              onCreate={(name) => createGroupMutation.mutate(name)}
-              onAssign={(groupId, profileId) => assignMutation.mutate({ groupId, route_profile_id: profileId })}
-            />
-          </div>
+          ))}
+          {!(profiles||[]).length && <div className="text-sm text-gray-400">No routes saved yet.</div>}
         </div>
       </section>
 
-      {selectedPool && (
-        <section className="bg-gray-800 border border-gray-800 rounded-lg p-6">
-          <h2 className="text-lg font-medium text-white mb-4">Pool Targets</h2>
-          <div className="space-y-3">
-            {(selectedPool.target_profiles || []).map((t: RouteTarget) => (
-              <div key={t.id} className="rounded-lg border border-gray-700 bg-gray-900/70 p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="text-white">{t.provider} / {t.endpoint}</div>
-                  <div className="text-gray-300">Region {t.region} • Weight {t.weight}</div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3 text-xs text-gray-300">
-                  <div>Context window: <span className="text-white">{t.profile?.limits?.context_window_tokens ?? 8192}</span></div>
-                  <div>Strength: <span className="text-white">{t.profile?.quality?.strength ?? 'n/a'}</span></div>
-                  <div>Info types: <span className="text-white">{(t.profile?.supported_data_classes || []).join(', ') || 'n/a'}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Removed Pool Targets listing to reduce overlap with Models */}
 
       {preview && (
         <section className="bg-gray-800 border border-gray-800 rounded-lg p-6">

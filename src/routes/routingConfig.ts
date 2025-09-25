@@ -26,7 +26,7 @@ export async function routingConfigRoutes(fastify: FastifyInstance, options: Rou
 
   // Profiles
   fastify.get('/profiles', async () => profilesService.listProfiles());
-  fastify.post('/profiles', async (request: FastifyRequest<{ Body: { name: string; basic?: RouteProfile['basic']; preferences?: RoutingPreference } }>, reply: FastifyReply) => {
+  fastify.post('/profiles', async (request: FastifyRequest<{ Body: { name: string; basic?: RouteProfile['basic']; preferences?: RoutingPreference; pool_id?: string } }>, reply: FastifyReply) => {
     if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
@@ -100,5 +100,18 @@ export async function routingConfigRoutes(fastify: FastifyInstance, options: Rou
       return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
     }
   });
-}
 
+  // Update group properties (default pool, allowed pools/policies, route_profile_id)
+  fastify.put('/groups/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<import('../types').UserGroup> & { route_profile_id?: string } }>, reply: FastifyReply) => {
+    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
+    }
+    try {
+      const g = profilesService.updateGroup(request.params.id, request.body);
+      return g;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update group';
+      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
+    }
+  });
+}

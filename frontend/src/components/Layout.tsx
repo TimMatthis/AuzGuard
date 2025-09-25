@@ -20,6 +20,7 @@ const NAV_LINKS: NavItem[] = [
   { type: 'link', name: 'Decision Trees', href: '/decisions', icon: 'FLOW' },
   { type: 'section', name: 'Routing' },
   { type: 'link', name: 'Routing Config', href: '/routing-config', icon: 'CFG' },
+  { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'USR' },
   { type: 'link', name: 'Routes', href: '/routes', icon: 'RTS' },
   { type: 'link', name: 'Models', href: '/models', icon: 'MDL' },
   { type: 'link', name: 'Chat Router', href: '/chat', icon: 'CHAT' },

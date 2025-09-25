@@ -39,19 +39,24 @@ class ApiClient {
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    const response = await fetch(url, { ...options, headers });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({
-        error: { code: 'NETWORK_ERROR', message: 'Network error' }
-      }));
-      throw new Error(error.error?.message || 'Request failed');
+    // 204 No Content
+    if (response.status === 204) {
+      return undefined as unknown as T;
     }
 
-    return response.json();
+    // Read body once, then decide
+    const raw = await response.text().catch(() => '');
+    let data: any = undefined;
+    try { data = raw ? JSON.parse(raw) : undefined; } catch { /* not JSON */ }
+
+    if (!response.ok) {
+      const message = data?.error?.message || data?.message || raw || `${response.status} ${response.statusText}`;
+      throw new Error(message || 'Request failed');
+    }
+
+    return (data as T);
   }
 
   // Policy endpoints
@@ -256,7 +261,7 @@ class ApiClient {
   async getRouteProfiles(): Promise<import('../types').RouteProfile[]> {
     return this.request('/routes/config/profiles');
   }
-  async createRouteProfile(payload: { name: string; basic?: import('../types').RouteProfile['basic']; preferences?: import('../types').RoutingPreference }): Promise<import('../types').RouteProfile> {
+  async createRouteProfile(payload: { name: string; pool_id?: string; basic?: import('../types').RouteProfile['basic']; preferences?: import('../types').RoutingPreference }): Promise<import('../types').RouteProfile> {
     return this.request('/routes/config/profiles', { method: 'POST', body: JSON.stringify(payload) });
   }
   async updateRouteProfile(id: string, patch: Partial<Omit<import('../types').RouteProfile, 'id' | 'created_at'>>): Promise<import('../types').RouteProfile> {
@@ -273,6 +278,9 @@ class ApiClient {
   }
   async deleteUserGroup(id: string): Promise<void> {
     return this.request(`/routes/config/groups/${id}`, { method: 'DELETE' });
+  }
+  async updateUserGroup(id: string, patch: Partial<import('../types').UserGroup> & { route_profile_id?: string }): Promise<import('../types').UserGroup> {
+    return this.request(`/routes/config/groups/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
   }
   async assignProfileToGroup(groupId: string, route_profile_id: string): Promise<any> {
     return this.request(`/routes/config/groups/${groupId}/assign`, { method: 'POST', body: JSON.stringify({ route_profile_id }) });

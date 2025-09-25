@@ -17,6 +17,7 @@ import { Routes as RoutesPage } from './pages/Routes'
 import { Settings } from './pages/Settings'
 import { Decisions } from './pages/Decisions'
 import { RoutingConfigurator } from './pages/RoutingConfigurator'
+import { UserGroups } from './pages/UserGroups'
 
 function App() {
   return (
@@ -40,6 +41,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <RoutingConfigurator />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user-groups"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <UserGroups />
               </Layout>
             </ProtectedRoute>
           }
