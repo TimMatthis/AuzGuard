@@ -5,7 +5,7 @@ import { apiClient } from '../api/client';
 import { Policy, Rule, Effect, CatalogRuleSummary } from '../types';
 import { CatalogAddModal } from '../components/CatalogAddModal';
 import { useAuth } from '../contexts/AuthContext';
-import { JSONImportModal } from '../components/JSONImportModal';
+// Import Policy JSON and frontend rule editor removed
 
 const severityColors: Record<string, string> = {
   CRITICAL: 'bg-red-500/10 text-red-300 border border-red-500/30',
@@ -75,7 +75,7 @@ export function Policies() {
   const canManageSettings = hasPermission('manage_settings');
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
-  const [showImportModal, setShowImportModal] = useState(false);
+  // const [showImportModal, setShowImportModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
   const [showAddFromCatalog, setShowAddFromCatalog] = useState(false);
@@ -260,22 +260,7 @@ export function Policies() {
               New Policy
             </button>
           )}
-          {canEditRules && selectedPolicy && (
-            <button
-              onClick={() => navigate(`/policies/${selectedPolicy.policy_id}`, { state: { showRuleBuilder: true, from: '/policies' } })}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-md transition-colors"
-            >
-              + Create Rule
-            </button>
-          )}
-          {canPublishRules && (
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-md transition-colors"
-            >
-              Import Policy JSON
-            </button>
-          )}
+          {/* Create Rule and Import JSON removed; rules are authored server-side */}
           {selectedPolicy && (
             <button
               onClick={() => handleExportPolicy(selectedPolicy)}
@@ -517,14 +502,14 @@ export function Policies() {
                           <p className="text-xs text-gray-400 mt-1">{rule.rule_id}</p>
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-2 text-xs text-gray-400">
-                          <div className="flex flex-wrap gap-2 justify-end">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[rule.severity]}`}>
-                              {rule.severity}
-                            </span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${effectColors[rule.effect]}`}>
-                              {rule.effect}
-                            </span>
-                          </div>
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[rule.severity]}`}>
+                            {rule.severity}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${effectColors[rule.effect]}`}>
+                            {rule.effect}
+                          </span>
+                        </div>
                           <p className="text-[11px] text-gray-500 sm:text-right">{statusCopy}</p>
                         </div>
                       </div>
@@ -773,7 +758,7 @@ export function Policies() {
         isDeleting={deletePolicyMutation.isPending}
         errorMessage={deletePolicyError}
       />
-      <JSONImportModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} />
+      {/* Import Policy JSON removed */}
 
       {selectedPolicy && (
         <CatalogAddModal
