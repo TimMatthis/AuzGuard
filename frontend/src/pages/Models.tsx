@@ -149,7 +149,7 @@ export function Models() {
   return (
     <>
     <PageLayout
-      title="Model Garden"
+      title="Model Gardens"
       subtitle="Compare models grouped by provider with residency, strengths and relative cost at-a-glance."
     >
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -233,11 +233,11 @@ export function Models() {
               )}
             </div>
 
-            {/* Model Catalog */}
+            {/* Model Gardens Catalog */}
             <div className="bg-gray-800 border border-gray-800 rounded-lg p-6">
               <header className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-medium text-white">Model Catalog</h2>
+                  <h2 className="text-lg font-medium text-white">Model Gardens Catalog</h2>
                   <p className="text-sm text-gray-400">Add described models as targets to the selected pool.</p>
                 </div>
                 <select value={targetPoolId} onChange={(e) => setTargetPoolId(e.target.value)} className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white text-sm">
@@ -264,7 +264,7 @@ export function Models() {
                       {item.profile.capabilities?.some(c => String(c).toLowerCase().includes('json')) && <span className="px-2 py-0.5 rounded bg-gray-900/60 border border-gray-700">JSON</span>}
                     </div>
                     <div className="mt-3">
-                      <button disabled={!targetPoolId || addTargetMutation.isPending} onClick={() => addCatalogToPool(item, (pools || []).find(p => p.pool_id === targetPoolId))} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md disabled:opacity-50">{addTargetMutation.isPending ? 'Addingâ€¦' : 'Add to Pool'}</button>
+                      <button disabled={!targetPoolId || addTargetMutation.isPending} onClick={() => addCatalogToPool(item, (pools || []).find(p => p.pool_id === targetPoolId))} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md disabled:opacity-50">{addTargetMutation.isPending ? 'Adding…' : 'Add to Pool'}</button>
                     </div>
                   </div>
                 ))}
@@ -304,7 +304,7 @@ export function Models() {
           </div>
           <div className="flex justify-end gap-3">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-300 hover:text-white" disabled={createPoolMutation.isPending}>Cancel</button>
-            <button onClick={handleCreatePool} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md disabled:opacity-50" disabled={!newPool.pool_id || !newPool.region || createPoolMutation.isPending}>{createPoolMutation.isPending ? 'Creatingâ€¦' : 'Create Pool'}</button>
+            <button onClick={handleCreatePool} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md disabled:opacity-50" disabled={!newPool.pool_id || !newPool.region || createPoolMutation.isPending}>{createPoolMutation.isPending ? 'Creating…' : 'Create Pool'}</button>
           </div>
         </div>
       </div>

@@ -1,196 +1,82 @@
-# AuzGuard - Sovereign AI Gateway
+# AuzGuard — Sovereign AI Gateway
 
-AuzGuard is a comprehensive policy/routing MVP for regulated industries, providing compliance-by-default AI gateway functionality with immutable audit trails.
+Sovereign-by-default AI gateway for regulated industries. Ship policies and routes with confidence, backed by immutable audit trails.
 
-## Features
+## Quickstart
 
-- **Policy Management**: Create, edit, and validate compliance policies with JSON schema validation
-- **Rule Engine**: CEL-like expression evaluator for complex policy conditions
-- **Request Simulator**: Test policies against sample requests with detailed evaluation traces
-- **Immutable Audit Logging**: Tamper-proof audit trails with hash chain verification
-- **Model Pool Routing**: Manage AI model pools and routing targets
-- **Model Garden Connectors**: Policy-aware routing across OpenAI, Gemini, and Ollama connectors
-- **Latency & Cost Analytics**: Capture per-invocation latency with dashboard summaries
-- **Role-Based Access Control**: Admin, Compliance, Developer, and Viewer roles
-- **Real-time Dashboard**: Monitor requests, block rates, and system health
+- Prereqs: Node.js 18+, PostgreSQL 14+
+- TL;DR:
+  - `npm install`
+  - `cp env.example .env` and edit `DATABASE_URL` if needed
+  - `npx prisma generate && npx prisma db push`
+  - `npm run dev`
+  - Open `http://localhost:3000` and pick a role to sign in (no password)
 
-## Architecture
+On first run the server seeds a baseline AU ruleset and model pools.
 
-### Backend (Node.js + TypeScript + Fastify)
-- **Policy Service**: CRUD operations with JSON schema validation
-- **Evaluation Service**: CEL-like rule evaluation engine
-- **Audit Service**: Immutable logging with hash chain
-- **Route Service**: Model pool and routing management
-- **Auth Service**: JWT-based authentication and RBAC
+## What You’ll Do
 
-### Frontend (React + TypeScript + Vite)
-- **Modern SPA**: React with TypeScript and Tailwind CSS
-- **State Management**: React Query for server state
-- **Routing**: React Router for navigation
-- **Components**: Reusable UI components with role-based access
+- Sign in as Viewer/Developer/Compliance/Admin to see scoped features
+- Run a request in Simulator to see allow/block decisions and traces
+- Tweak a rule in Policy Editor and re-run the simulation
+- Inspect immutable Audit logs and verify integrity proofs
+- Explore Routes and Model Pools, including onshore-only routing
 
-## Quick Start
+## Configuration
 
-### Prerequisites
-- Node.js 18+ 
-- PostgreSQL 14+
-- npm or yarn
+- Copy `env.example` to `.env` and review:
+  - `DATABASE_URL` points to your Postgres instance
+  - `MODEL_GARDEN_STUB_RESPONSES=true` enables safe, offline stubs
+  - Optional: set `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `OLLAMA_BASE_URL`
+- `.env` is git-ignored; do not commit secrets
 
-### Backend Setup
+## Project Structure
 
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+- Backend: Fastify + TypeScript (`src/`)
+- Frontend: React + Vite + Tailwind (`frontend/`)
+- Database: Prisma schema (`prisma/schema.prisma`)
+- Schemas and samples: `schemas/`, `sample_policy_import.json`
 
-2. **Set up environment**:
-   ```bash
-   cp env.example .env
-   # Edit .env with your database and JWT settings
-   ```
+## API (Selected)
 
-3. **Set up database**:
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   ```
+- Policies: `GET /api/policies`, `PUT /api/policies/:policyId`
+- Evaluate: `POST /api/evaluate`
+- Audit: `GET /api/audit`, `POST /api/audit/verify`
+- Routes: `GET /api/routes/pools`, `POST /api/routes/targets`
 
-4. **Start the backend**:
-   ```bash
-   npm run dev:backend
-   ```
+Full API is discoverable under `/api/*` and in the code under `src/routes`.
 
-The API will be available at `http://localhost:3001`
+## Rules Language (CEL-like)
 
-### Frontend Setup
+- Literals: `true`, `false`, `'string'`, `123`
+- Operators: `&&`, `||`, `!`, `==`, `!=`, `>`, `<`, `>=`, `<=`
+- Helpers: `has('field')`, `in(array, value)`
 
-1. **Navigate to frontend directory**:
-   ```bash
-   cd frontend
-   ```
+Examples:
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Start the frontend**:
-   ```bash
-   npm run dev
-   ```
-
-The frontend will be available at `http://localhost:3000`
-
-### Full Stack Development
-
-From the root directory:
-```bash
-npm run dev
 ```
-
-This starts both backend and frontend concurrently.
-
-## API Endpoints
-
-### Policy Management
-- `GET /api/policies` - List all policies
-- `POST /api/policies/import` - Import policy from JSON
-- `GET /api/policies/:policyId` - Get specific policy
-- `PUT /api/policies/:policyId` - Update policy
-- `POST /api/policies/:policyId/validate` - Validate policy
-- `POST /api/policies/:policyId/rules/:ruleId/test` - Test rule
-
-### Evaluation & Simulation
-- `POST /api/evaluate` - Evaluate policy against request
-- `POST /api/evaluate/simulate` - Simulate evaluation (alias)
-
-### Audit Logging
-- `GET /api/audit` - Get audit logs with filtering
-- `GET /api/audit/:id` - Get specific audit log entry
-- `GET /api/audit/proof/latest` - Get latest Merkle proof
-- `POST /api/audit/verify` - Verify audit log integrity
-
-### Routes & Models
-- `GET /api/routes/pools` - Get all model pools
-- `POST /api/routes/pools` - Create model pool
-- `PUT /api/routes/pools/:poolId` - Update model pool
-- `GET /api/routes/targets` - Get all route targets
-- `POST /api/routes/targets` - Create route target
-
-### Overrides
-- `POST /api/overrides/execute` - Execute policy override
-
-## Demo Data
-
-The system comes pre-loaded with Australian compliance rules:
-
-- **HEALTH_NO_OFFSHORE**: Blocks health data processing outside AU
-- **PRIV_APP8_CROSS_BORDER**: Requires override for cross-border personal data
-- **CDR_DATA_SOVEREIGNTY**: Routes CDR data to Australian pools
-- **AI_RISK_BIAS_AUDIT**: Routes high-risk AI to bias-audited models
-- **SANDBOX_NO_PERSIST**: Routes sandbox requests to non-persistent pools
-
-## User Roles
-
-- **Viewer**: Read-only access to policies and audit logs
-- **Developer**: Edit rules, run simulations, test policies
-- **Compliance**: Publish rules, manage overrides, full audit access
-- **Admin**: Full system access, manage routes and settings
-
-## CEL-like Expression Language
-
-The rule engine supports a subset of CEL (Common Expression Language):
-
-- **Literals**: `true`, `false`, `"string"`, `123`
-- **Operators**: `&&`, `||`, `!`, `==`, `!=`
-- **Comparisons**: `>`, `<`, `>=`, `<=`
-- **Functions**: `has('field')`, `in(array, value)`
-- **Field Access**: `org_id`, `data_class`, `destination_region`
-
-Example conditions:
-```cel
 data_class in ['health_record', 'medical_data'] && destination_region != 'AU'
 personal_information == true && destination_region != 'AU'
 environment in ['sandbox', 'testing', 'development']
 ```
 
-## Security Features
-
-- **Immutable Audit Logs**: Hash chain prevents tampering
-- **Merkle Tree Proofs**: Cryptographic verification of log integrity
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access Control**: Granular permissions system
-- **Data Redaction**: Sensitive fields hashed before logging
-
 ## Development
 
-### Running Tests
-```bash
-npm test
-```
+- Tests: `npm test`
+- Migrations: `npx prisma migrate dev`
+- Build: `npm run build`
 
-### Database Migrations
-```bash
-npx prisma migrate dev
-```
+## Security
 
-### Building for Production
-```bash
-npm run build
-```
+- Immutable audit log with hash chain and Merkle proofs
+- JWT-based auth and role-based access control
+- Data redaction for sensitive fields
 
-## License
+## License & Contributing
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+- MIT License — see `LICENSE`
+- PRs welcome: fork → branch → changes → tests → PR
 
 ## Support
 
-For questions or issues, please open a GitHub issue or contact the development team.
+Open a GitHub issue or contact the team.

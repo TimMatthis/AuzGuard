@@ -12,20 +12,25 @@ type NavItem =
 
 const NAV_LINKS: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: 'DB' },
-  { type: 'section', name: 'Guardrails' },
+
+  { type: 'section', name: 'Policies & Rules' },
   { type: 'link', name: 'Policies', href: '/policies', icon: 'POL' },
   { type: 'link', name: 'Simulator', href: '/simulator', icon: 'SIM' },
   { type: 'link', name: 'Audit Log', href: '/audit', icon: 'AUD' },
-  { type: 'section', name: 'Visualize' },
-  { type: 'link', name: 'Decision Trees', href: '/decisions', icon: 'FLOW' },
+
   { type: 'section', name: 'Routing' },
   { type: 'link', name: 'Routing Config', href: '/routing-config', icon: 'CFG' },
-  { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'USR' },
-  { type: 'link', name: 'Routes', href: '/routes', icon: 'RTS' },
-  { type: 'link', name: 'Models', href: '/models', icon: 'MDL' },
+  { type: 'link', name: 'Model Gardens', href: '/models', icon: 'MDL' },
+
+  { type: 'section', name: 'Decision Tree' },
+  { type: 'link', name: 'Decision Tree', href: '/decisions', icon: 'FLOW' },
+
+  { type: 'section', name: 'Chat Interface' },
   { type: 'link', name: 'Chat Router', href: '/chat', icon: 'CHAT' },
   { type: 'link', name: 'Chat User Interface', href: '/chat-ui', icon: 'UI' },
-  { type: 'section', name: 'System' },
+
+  { type: 'section', name: 'User Settings' },
+  { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'USR' },
   { type: 'link', name: 'Settings', href: '/settings', icon: 'CFG' }
 ];
 

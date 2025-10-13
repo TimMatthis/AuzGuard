@@ -51,11 +51,11 @@ export function Landing() {
           </div>
           <div className="glass-card p-6 text-left">
             <p className="text-xs uppercase tracking-widest text-emerald-300">Routing</p>
-            <h3 className="text-2xl font-semibold text-white mt-1">Models & Pools</h3>
+            <h3 className="text-2xl font-semibold text-white mt-1">Model Gardens</h3>
             <p className="text-gray-300 mt-2 text-sm">Route requests to the right model endpoints using health, latency, and compliance-aware profiles.</p>
             <div className="mt-4 flex gap-3">
-              <Link to="/routes" className="cta-button">Open Routing</Link>
-              <Link to="/models" className="px-5 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors border border-white/10">Models</Link>
+              <Link to="/models" className="cta-button">Open Model Gardens</Link>
+              <Link to="/models" className="px-5 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors border border-white/10">Model Gardens</Link>
             </div>
           </div>
         </div>

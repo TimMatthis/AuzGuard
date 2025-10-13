@@ -32,7 +32,11 @@ class ApiClient {
     const url = `${API_BASE}${endpoint}`;
 
     const headers = new Headers(options.headers ?? {});
-    headers.set('Content-Type', 'application/json');
+    
+    // Only set Content-Type for requests that have a body
+    if (options.body) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     // Always check localStorage for token
     const token = this.token || localStorage.getItem('auzguard_token');

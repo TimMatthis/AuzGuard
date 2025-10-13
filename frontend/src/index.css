@@ -107,6 +107,33 @@ button {
 .app-shell__inner { @apply relative z-10 flex; }
 
 .app-sidebar { @apply w-60 shrink-0 h-screen sticky top-0 bg-white/5 border-r border-white/10 backdrop-blur-xl; }
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .app-sidebar {
+    display: none; /* Hide sidebar on mobile - could add hamburger menu later */
+  }
+  
+  .app-navbar {
+    @apply px-4 py-2;
+  }
+  
+  .app-content {
+    @apply p-4;
+  }
+  
+  .page-header {
+    @apply px-0;
+  }
+  
+  .responsive-grid {
+    @apply grid-cols-1 !important;
+  }
+  
+  .panel__header {
+    @apply flex-col items-start gap-2;
+  }
+}
 .app-sidebar__brand { @apply px-5 py-4 border-b border-white/10; }
 .app-sidebar__brand a { @apply flex flex-col; }
 .app-sidebar__brand span { @apply text-white font-semibold; }

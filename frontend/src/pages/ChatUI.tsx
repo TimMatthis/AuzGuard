@@ -20,15 +20,19 @@ export function ChatUI() {
   const [policyId, setPolicyId] = useState<string>('AuzGuard_AU_Base_v1');
   const [orgId, setOrgId] = useState<string>('tenant-demo');
   const [actorId, setActorId] = useState<string>('agent-001');
+  const [environment, setEnvironment] = useState<'production'|'staging'|'development'|'sandbox'>('production');
+  const [audience, setAudience] = useState<'customer'|'external'|'internal'|'staff'>('customer');
   const [context, setContext] = useState<Record<string, unknown>>({
     data_class: 'general',
     destination_region: 'AU',
     environment: 'production',
+    audience: 'customer',
   });
 
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [lastResult, setLastResult] = useState<RoutingResponse | null>(null);
+  const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -64,10 +68,12 @@ export function ChatUI() {
 
     const payload: Record<string, unknown> = {
       ...context,
+      environment,
+      audience,
       messages: nextMsgs.map(m => ({ role: m.role, content: m.content })),
       channel: 'chat-ui'
     };
-
+    setLastPayload(payload);
     execute.mutate({ payload });
   };
 
@@ -96,6 +102,20 @@ export function ChatUI() {
                    className="bg-gray-900 border border-gray-700 text-sm text-gray-100 rounded px-2 py-1 w-32"/>
             <input value={actorId} onChange={e=>setActorId(e.target.value)} placeholder="actor_id"
                    className="bg-gray-900 border border-gray-700 text-sm text-gray-100 rounded px-2 py-1 w-32"/>
+            <select value={environment} onChange={e=>setEnvironment(e.target.value as any)}
+                    className="bg-gray-900 border border-gray-700 text-sm text-gray-100 rounded px-2 py-1">
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+              <option value="development">development</option>
+              <option value="sandbox">sandbox</option>
+            </select>
+            <select value={audience} onChange={e=>setAudience(e.target.value as any)}
+                    className="bg-gray-900 border border-gray-700 text-sm text-gray-100 rounded px-2 py-1">
+              <option value="customer">customer</option>
+              <option value="external">external</option>
+              <option value="internal">internal</option>
+              <option value="staff">staff</option>
+            </select>
           </div>
         </div>
 
@@ -132,7 +152,7 @@ export function ChatUI() {
               className="flex-1 bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"/>
             <button onClick={send} disabled={execute.isPending}
                     className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-md text-sm disabled:opacity-50">
-              {execute.isPending ? 'Routing…' : 'Send'}
+              {execute.isPending ? 'Routing...' : 'Send'}
             </button>
           </div>
         </div>
@@ -199,6 +219,54 @@ export function ChatUI() {
           ) : (
             <div className="text-xs text-gray-400">Send a message to view evaluation details.</div>
           )}
+
+          {/* API I/O panel */}
+          <div className="bg-gray-800 border border-gray-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-white font-semibold">API I/O</div>
+              <div className="text-xs text-gray-400">POST /api/routes/execute</div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Request payload</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <button
+                    className="px-2 py-0.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(JSON.stringify(lastPayload ?? {}, null, 2)); } catch {}
+                    }}
+                  >Copy</button>
+                </div>
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words max-h-48 overflow-auto bg-gray-900/60 border border-gray-700 rounded p-2">
+                  {JSON.stringify(lastPayload ?? {}, null, 2)}
+                </pre>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Router response</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <button
+                    className="px-2 py-0.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(JSON.stringify(lastResult ?? {}, null, 2)); } catch {}
+                    }}
+                  >Copy</button>
+                </div>
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words max-h-56 overflow-auto bg-gray-900/60 border border-gray-700 rounded p-2">
+                  {JSON.stringify(lastResult ?? {}, null, 2)}
+                </pre>
+              </div>
+              {typeof lastResult?.model_response !== 'undefined' && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Model response</div>
+                  <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words max-h-56 overflow-auto bg-gray-900/60 border border-gray-700 rounded p-2">
+                    {typeof lastResult.model_response === 'string'
+                      ? lastResult.model_response
+                      : JSON.stringify(lastResult.model_response, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

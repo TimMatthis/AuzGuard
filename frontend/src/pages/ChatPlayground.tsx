@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { RoutingResponse } from '../types';
+import { RoutingResponse, Policy, Rule, Effect } from '../types';
 
 interface ConversationMessage {
   id: string;
@@ -18,6 +19,7 @@ const initialContext = `{
 }`;
 
 export function ChatPlayground() {
+  const navigate = useNavigate();
   const { data: policies } = useQuery({
     queryKey: ['policies'],
     queryFn: () => apiClient.getPolicies()
@@ -31,6 +33,12 @@ export function ChatPlayground() {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [lastResult, setLastResult] = useState<RoutingResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastRequest, setLastRequest] = useState<Record<string, unknown> | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [comparePolicyId, setComparePolicyId] = useState<string>('');
+  const [compareA, setCompareA] = useState<RoutingResponse | null>(null);
+  const [compareB, setCompareB] = useState<RoutingResponse | null>(null);
+  const [compareNote, setCompareNote] = useState<string | null>(null);
 
   const appendRouterMessage = (result: RoutingResponse | null, error?: string) => {
     setMessages((current) => {
@@ -105,6 +113,7 @@ export function ChatPlayground() {
       message_timestamp: new Date().toISOString(),
       channel: 'chat'
     };
+    setLastRequest(requestPayload);
 
     setMessages((current) => [
       ...current,
@@ -117,6 +126,68 @@ export function ChatPlayground() {
     setMessage('');
 
     executeMutation.mutate({ policyId: selectedPolicyId, request: requestPayload });
+  };
+
+  const openInSimulator = () => {
+    // Prefer the last executed request; otherwise build from current fields
+    let request = lastRequest;
+    if (!request) {
+      try {
+        const base = contextJson ? JSON.parse(contextJson) : {};
+        request = {
+          ...base,
+          org_id: orgId,
+          actor_id: actorId,
+          message: message || undefined,
+          channel: 'chat'
+        } as Record<string, unknown>;
+      } catch {
+        request = { org_id: orgId, actor_id: actorId } as Record<string, unknown>;
+      }
+    }
+    try { localStorage.setItem('auzguard_sim_policy', selectedPolicyId); localStorage.setItem('auzguard_sim_request', JSON.stringify(request)); } catch {} navigate('/simulator', { state: { policyId: selectedPolicyId, request } });
+  };
+
+  const runAB = async () => {
+    setCompareNote(null);
+    try {
+      if (!comparePolicyId) {
+        setCompareNote('Select a second policy to compare.');
+        return;
+      }
+      // Build a request similar to last send or current fields
+      let request = lastRequest;
+      if (!request) {
+        try {
+          request = JSON.parse(contextJson || '{}');
+        } catch {
+          setCompareNote('Invalid context JSON. Fix it or send once.');
+          return;
+        }
+        request = {
+          ...(request as Record<string, unknown>),
+          org_id: orgId,
+          actor_id: actorId,
+          message: message || undefined,
+          channel: 'chat'
+        } as Record<string, unknown>;
+      }
+      const [a, b] = await Promise.all([
+        apiClient.executeRouting({ policy_id: selectedPolicyId, request, org_id: orgId, actor_id: actorId }),
+        apiClient.executeRouting({ policy_id: comparePolicyId, request, org_id: orgId, actor_id: actorId })
+      ]);
+      setCompareA(a);
+      setCompareB(b);
+      const diffs: string[] = [];
+      if (a.decision !== b.decision) diffs.push(`Decision: ${a.decision} vs ${b.decision}`);
+      if ((a.matched_rule || '') !== (b.matched_rule || '')) diffs.push(`Rule: ${a.matched_rule || '-'} vs ${b.matched_rule || '-'}`);
+      const poolA = a.route_decision?.pool_id || '-';
+      const poolB = b.route_decision?.pool_id || '-';
+      if (poolA !== poolB) diffs.push(`Pool: ${poolA} vs ${poolB}`);
+      setCompareNote(diffs.length ? diffs.join(' • ') : 'No differences detected.');
+    } catch (e: any) {
+      setCompareNote(e?.message || 'Failed to run A/B compare.');
+    }
   };
 
   return (
@@ -138,6 +209,7 @@ export function ChatPlayground() {
                 value={selectedPolicyId}
                 onChange={(event) => setSelectedPolicyId(event.target.value)}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                data-testid="policy-select"
               >
                 {policies?.map(policy => (
                   <option key={policy.policy_id} value={policy.policy_id}>
@@ -152,6 +224,7 @@ export function ChatPlayground() {
                 value={orgId}
                 onChange={(event) => setOrgId(event.target.value)}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                data-testid="org-input"
               />
             </div>
             <div>
@@ -160,6 +233,7 @@ export function ChatPlayground() {
                 value={actorId}
                 onChange={(event) => setActorId(event.target.value)}
                 className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                data-testid="actor-input"
               />
             </div>
           </div>
@@ -171,6 +245,7 @@ export function ChatPlayground() {
               onChange={(event) => setContextJson(event.target.value)}
               rows={6}
               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+              data-testid="context-textarea"
             />
           </div>
 
@@ -218,15 +293,17 @@ export function ChatPlayground() {
                     handleSend();
                   }
                 }}
-                placeholder="Ask something to route�"
+                placeholder="Ask something to route…"
                 className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                data-testid="message-input"
               />
               <button
                 onClick={handleSend}
                 disabled={executeMutation.isPending}
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-md transition-colors disabled:opacity-50"
+                data-testid="send-button"
               >
-                {executeMutation.isPending ? 'Routing�' : 'Send & Route'}
+                {executeMutation.isPending ? 'Routing...' : 'Send & Route'}
               </button>
             </div>
           </div>
@@ -236,6 +313,110 @@ export function ChatPlayground() {
           <div>
             <h2 className="text-lg font-medium text-white">Decision Trace</h2>
             <p className="text-sm text-gray-400">Latest router execution, including rule ladder and model scoring.</p>
+          </div>
+
+          {lastResult && (
+            <div className="flex gap-3 items-center">
+              <button
+                onClick={async () => {
+                  setSaveStatus(null);
+                  try {
+                    if (!lastResult?.matched_rule) {
+                      setSaveStatus('No matched rule to attach test.');
+                      return;
+                    }
+                    const fullPolicy: Policy = await apiClient.getPolicy(selectedPolicyId);
+                    const rules: Rule[] = fullPolicy.rules || [];
+                    const idx = rules.findIndex(r => r.rule_id === lastResult.matched_rule);
+                    if (idx === -1) {
+                      setSaveStatus(`Rule ${lastResult.matched_rule} not found in policy.`);
+                      return;
+                    }
+                    const test = {
+                      name: `Chat case ${new Date().toISOString()}`,
+                      request: (lastRequest || lastResult.request_payload || {}),
+                      expect: (lastResult.decision as Effect),
+                    };
+                    const updatedRule: Rule = { ...rules[idx], tests: [...(rules[idx].tests || []), test] };
+                    const updated: Policy = { ...fullPolicy, rules: [...rules.slice(0, idx), updatedRule, ...rules.slice(idx + 1)] };
+                    await apiClient.updatePolicy(updated.policy_id, updated);
+                    setSaveStatus('Saved to matched rule tests.');
+                  } catch (e: any) {
+                    setSaveStatus(e?.message || 'Failed to save test.');
+                  }
+                }}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs"
+                data-testid="save-as-test"
+              >
+                Save as rule test
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const toCopy = JSON.stringify(lastRequest || lastResult?.request_payload || {}, null, 2);
+                    await navigator.clipboard.writeText(toCopy);
+                    setSaveStatus('Request copied to clipboard.');
+                  } catch {
+                    setSaveStatus('Failed to copy to clipboard.');
+                  }
+                }}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs"
+                data-testid="copy-request"
+              >
+                Copy request JSON
+              </button>
+              {saveStatus && (
+                <span className="text-xs text-gray-300">{saveStatus}</span>
+              )}
+              <button
+                onClick={openInSimulator}
+                className="ml-auto px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded text-xs"
+                data-testid="open-simulator"
+              >
+                Open in Simulator
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 bg-gray-900/40 border border-gray-800 rounded p-3">
+            <div className="text-xs text-gray-300">A/B compare</div>
+            <div className="flex gap-2 items-center">
+              <select
+                value={comparePolicyId}
+                onChange={e => setComparePolicyId(e.target.value)}
+                className="px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm text-gray-100"
+                data-testid="compare-policy-select"
+              >
+                <option value="">Select policy B…</option>
+                {(policies || []).filter(p => p.policy_id !== selectedPolicyId).map(p => (
+                  <option key={p.policy_id} value={p.policy_id}>{p.title} ({p.policy_id})</option>
+                ))}
+              </select>
+              <button
+                onClick={runAB}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs"
+                data-testid="run-ab"
+              >
+                Run A/B
+              </button>
+              {compareNote && <span className="text-xs text-gray-300">{compareNote}</span>}
+            </div>
+            {(compareA && compareB) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="bg-gray-900/60 border border-gray-700 rounded p-3">
+                  <div className="font-semibold text-gray-100 mb-1">Policy A: {selectedPolicyId}</div>
+                  <div>Decision: {compareA.decision}</div>
+                  <div>Rule: {compareA.matched_rule || '-'}</div>
+                  <div>Pool: {compareA.route_decision?.pool_id || '-'}</div>
+                </div>
+                <div className="bg-gray-900/60 border border-gray-700 rounded p-3">
+                  <div className="font-semibold text-gray-100 mb-1">Policy B: {comparePolicyId}</div>
+                  <div>Decision: {compareB.decision}</div>
+                  <div>Rule: {compareB.matched_rule || '-'}</div>
+                  <div>Pool: {compareB.route_decision?.pool_id || '-'}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {lastResult ? (
@@ -353,4 +534,3 @@ export function ChatPlayground() {
     </div>
   );
 }
-

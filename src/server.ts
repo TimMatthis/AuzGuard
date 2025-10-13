@@ -204,7 +204,7 @@ async function registerPluginsAndRoutes() {
       }
     });
   } catch (err) {
-    fastify.log.warn('Static serving not configured. Build the frontend or run dev separately.');
+    fastify.log.warn('Static serving not configured. Build the frontend (npm run build:frontend) or run it separately (npm run dev:frontend).');
   }
 }
 
@@ -235,6 +235,10 @@ async function start() {
 
     await fastify.listen({ port, host });
     fastify.log.info(`AuzGuard API server listening on ${host}:${port}`);
+    fastify.log.info('Next steps:');
+    fastify.log.info('  1) UI (dev): http://localhost:3000');
+    fastify.log.info('  2) UI (built): served from this server if frontend is built');
+    fastify.log.info('  3) Sign in: pick a role; no password needed in preview');
 
     await seedInitialData();
 
@@ -502,6 +506,7 @@ async function seedInitialData() {
 
     // Ensure base policy always contains the default rules (idempotent upsert of rules)
     await ensureBaseRulesPresent();
+    await ensureProfanityRulesEverywhere();
   } catch (error) {
     const err = error as Error;
   }
@@ -547,6 +552,30 @@ async function ensureBaseRulesPresent() {
     fastify.log.info(`Synchronized base rules into policy ${policyId} (total ${merged.length})`);
   } catch (e) {
     fastify.log.warn('Failed to ensure base policy rules are present');
+  }
+}
+
+async function ensureProfanityRulesEverywhere() {
+  try {
+    const profBlock: any = (catalogService as any)?.getRule?.('PROFANITY_BLOCK_STRICT');
+    const profWarn: any = (catalogService as any)?.getRule?.('PROFANITY_WARN_INTERNAL');
+    if (!profBlock && !profWarn) return;
+
+    const policies = await prisma.policy.findMany();
+    for (const p of policies) {
+      const rules: any[] = Array.isArray((p as any).rules) ? ((p as any).rules as any[]) : [];
+      const byId = new Set<string>(rules.map(r => r?.rule_id).filter(Boolean));
+      const toAdd: any[] = [];
+      if (profBlock && !byId.has(profBlock.rule_id)) toAdd.push(profBlock);
+      if (profWarn && !byId.has(profWarn.rule_id)) toAdd.push(profWarn);
+      if (!toAdd.length) continue;
+
+      const merged = [...rules, ...toAdd].sort((a, b) => (a?.priority ?? 999) - (b?.priority ?? 999));
+      await prisma.policy.update({ where: { policy_id: (p as any).policy_id }, data: { rules: (merged as any) } });
+      fastify.log.info(`Added profanity rules to policy ${(p as any).policy_id}`);
+    }
+  } catch (e) {
+    fastify.log.warn('Failed to ensure profanity rules across policies');
   }
 }
 

@@ -50,7 +50,7 @@ export function Login() {
               Welcome to AuzGuard — your sovereign AI command centre.
             </h1>
             <p className="text-lg text-gray-300 max-w-xl">
-              Pick the role you want to explore. We’ll mint a scoped session with pre-baked permissions so you can experience the policy gateway from that perspective.
+              Pick a role to explore. We'll mint a scoped session with pre-baked permissions so you can experience the gateway from that perspective.
             </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -75,7 +75,7 @@ export function Login() {
               </span>
               <h2 className="text-2xl font-semibold">Sign in</h2>
               <p className="text-sm text-gray-400">
-                Choose a role, optionally tag an organisation, and step into the console.
+                Choose a role, optionally add an organisation ID, then enter the console.
               </p>
             </header>
 
@@ -111,7 +111,7 @@ export function Login() {
             </form>
 
             <p className="text-xs text-gray-400 text-center">
-              No passwords required. Sessions reset nightly in this preview environment.
+              No passwords required. This preview mints demo tokens for the role you select.
             </p>
           </section>
         </div>
@@ -119,3 +119,4 @@ export function Login() {
     </div>
   );
 }
+
