@@ -10,7 +10,7 @@ import { Dashboard2 as Dashboard } from './pages/Dashboard2'
 import { Policies } from './pages/Policies'
 import { PolicyEditor } from './pages/PolicyEditor'
 import { ChatPlayground } from './pages/ChatPlayground'
-import { Models } from './pages/Models'
+import { Models as ModelsPage } from './pages/Models2'
 import { ChatUI } from './pages/ChatUI'
 import { Simulator } from './pages/Simulator2'
 import { Audit } from './pages/Audit'
@@ -18,11 +18,14 @@ import { Settings } from './pages/Settings'
 import { Decisions } from './pages/Decisions'
 import { RoutingConfigurator } from './pages/RoutingConfigurator'
 import { UserGroups } from './pages/UserGroups'
+import { ProductAccessGroups } from './pages/ProductAccessGroups'
+import { BrandingProvider } from './contexts/BrandingContext'
 
 function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <BrandingProvider>
         <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -70,7 +73,7 @@ function App() {
         <Route path="/models" element={
           <ProtectedRoute>
             <Layout>
-              <Models />
+              <ModelsPage />
             </Layout>
           </ProtectedRoute>
         } />
@@ -130,8 +133,17 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/product-access-groups" element={
+          <ProtectedRoute requiredPermission="manage_settings">
+            <Layout>
+              <ProductAccessGroups />
+            </Layout>
+          </ProtectedRoute>
+        } />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+        </BrandingProvider>
     </AuthProvider>
     </ErrorBoundary>
   )

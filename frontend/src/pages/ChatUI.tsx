@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { Policy, RoutingResponse } from '../types';
+import { useBranding } from '../contexts/BrandingContext';
 
 type ChatRole = 'user' | 'assistant';
 
@@ -12,6 +13,7 @@ interface ChatMsg {
 }
 
 export function ChatUI() {
+  const { brandName, poweredBySuffix } = useBranding();
   const { data: policies } = useQuery<Policy[]>({
     queryKey: ['policies'],
     queryFn: () => apiClient.getPolicies(),
@@ -85,8 +87,8 @@ export function ChatUI() {
       <div className="flex-1 bg-gray-800 rounded-lg border border-gray-700 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
           <div>
-            <div className="text-white font-semibold">Chat User Interface</div>
-            <div className="text-xs text-gray-400">OpenAI/Gemini-like UI with policy routing & audit</div>
+            <div className="text-white font-semibold">{brandName} Chat</div>
+            <div className="text-xs text-gray-400">{brandName !== 'AuzGuard' ? (poweredBySuffix || 'powered by AuzGuard') : 'OpenAI/Gemini-like UI with policy routing & audit'}</div>
           </div>
           <div className="flex gap-2 items-center">
             <select

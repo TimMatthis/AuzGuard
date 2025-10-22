@@ -27,6 +27,7 @@ import { routeRoutes } from './routes/routes';
 import { overrideRoutes } from './routes/overrides';
 import { routingConfigRoutes } from './routes/routingConfig';
 import { RoutingProfilesService } from './services/routingProfiles';
+import { brandingRoutes } from './routes/branding';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -179,6 +180,8 @@ async function registerPluginsAndRoutes() {
     auditService,
     authService
   });
+
+  await fastify.register(brandingRoutes, { prefix: '/api' });
 
   // Serve frontend build and enable SPA fallback for non-API routes
   const staticRoot = path.join(__dirname, '..', 'frontend', 'dist');

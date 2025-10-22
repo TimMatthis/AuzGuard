@@ -4,6 +4,66 @@ import { apiClient } from '../api/client';
 import { ModelPool, RouteTarget, RoutingDecision, RoutingPreference, ModelProfile, RouteProfile } from '../types';
 import { Tooltip } from '../components/Tooltip';
 
+// Reusable stepper input for numeric advanced parameters
+function StepperInput({
+  value,
+  onChange,
+  step = 1,
+  min,
+  max,
+  placeholder,
+  inputProps = {},
+  'aria-label': ariaLabel
+}: {
+  value: number | undefined;
+  onChange: (next: number | undefined) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  'aria-label'?: string;
+}) {
+  const dec = () => {
+    const base = typeof value === 'number' ? value : (typeof min === 'number' ? min : 0);
+    let next = Number((base - step).toFixed(6));
+    if (typeof min === 'number' && next < min) next = min;
+    onChange(next);
+  };
+  const inc = () => {
+    const base = typeof value === 'number' ? value : (typeof min === 'number' ? min : 0);
+    let next = Number((base + step).toFixed(6));
+    if (typeof max === 'number' && next > max) next = max;
+    onChange(next);
+  };
+
+  const buttonBase = 'px-3 py-2 text-sm border select-none focus:outline-none focus:ring-2 focus:ring-emerald-500';
+  const off = 'bg-gray-900/60 border-gray-700 text-gray-300 hover:bg-gray-800 hover:border-gray-600';
+
+  return (
+    <div className="flex items-stretch">
+      <button type="button" aria-label={`decrease ${ariaLabel || ''}`.trim()} className={`${buttonBase} ${off} rounded-l-md`} onClick={dec}>
+        −
+      </button>
+      <input
+        type="number"
+        value={value ?? ''}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+        step={step}
+        min={min}
+        max={max}
+        className="w-full text-center px-3 py-2 bg-gray-900 border-t border-b border-gray-700 text-white focus:outline-none"
+        aria-label={ariaLabel}
+        {...inputProps}
+      />
+      <button type="button" aria-label={`increase ${ariaLabel || ''}`.trim()} className={`${buttonBase} ${off} -ml-px rounded-r-md`} onClick={inc}>
+        +
+      </button>
+    </div>
+  );
+}
+
 export function RoutingConfigurator() {
   const queryClient = useQueryClient();
   const { data: pools } = useQuery<ModelPool[]>({ queryKey: ['modelPools'], queryFn: () => apiClient.getModelPools() });
@@ -17,7 +77,6 @@ export function RoutingConfigurator() {
     optimize_cost: false,
     optimize_performance: false,
     keep_onshore: false,
-    dynamic_by_context: true,
   });
 
   const [prefs, setPrefs] = React.useState<RoutingPreference>({
@@ -55,6 +114,10 @@ export function RoutingConfigurator() {
       }
       if (basic?.keep_onshore) {
         next.required_data_residency = next.required_data_residency || 'AU';
+      } else {
+        if (next.required_data_residency === 'AU') {
+          next.required_data_residency = undefined;
+        }
       }
       return next;
     });
@@ -95,32 +158,88 @@ export function RoutingConfigurator() {
 
       {/* Basic section */}
       <section className="bg-gray-800 border border-gray-800 rounded-lg p-6">
-        <header className="mb-4">
+        <header className="mb-4 flex items-center gap-2">
           <h2 className="text-lg font-medium text-white">Basic Options</h2>
-          <p className="text-sm text-gray-400">Tick the strategies that best fit this route.</p>
+          <Tooltip label="Choose one priority: Speed, Cost, or Performance. Onshore is an independent toggle." />
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <label className={`flex items-center gap-2 p-3 rounded border cursor-pointer ${basic?.optimize_speed ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-gray-700 bg-gray-900/60'}`}
-            onClick={() => setBasic(prev => ({ ...(prev||{}), optimize_speed: !prev?.optimize_speed }))}>
-            <input type="checkbox" checked={!!basic?.optimize_speed} readOnly /> Optimise for speed
-          </label>
-          <label className={`flex items-center gap-2 p-3 rounded border cursor-pointer ${basic?.optimize_cost ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-gray-700 bg-gray-900/60'}`}
-            onClick={() => setBasic(prev => ({ ...(prev||{}), optimize_cost: !prev?.optimize_cost }))}>
-            <input type="checkbox" checked={!!basic?.optimize_cost} readOnly /> Optimise for cost
-          </label>
-          <label className={`flex items-center gap-2 p-3 rounded border cursor-pointer ${basic?.optimize_performance ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-gray-700 bg-gray-900/60'}`}
-            onClick={() => setBasic(prev => ({ ...(prev||{}), optimize_performance: !prev?.optimize_performance, optimize_speed: false, optimize_cost: false }))}>
-            <input type="checkbox" checked={!!basic?.optimize_performance} readOnly /> Optimise for performance
-          </label>
-          <label className={`flex items-center gap-2 p-3 rounded border cursor-pointer ${basic?.keep_onshore ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-gray-700 bg-gray-900/60'}`}
-            onClick={() => setBasic(prev => ({ ...(prev||{}), keep_onshore: !prev?.keep_onshore, }))}>
-            <input type="checkbox" checked={!!basic?.keep_onshore} readOnly /> Keep all data onshore
-          </label>
-          <label className={`flex items-center gap-2 p-3 rounded border cursor-pointer ${basic?.dynamic_by_context ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-gray-700 bg-gray-900/60'}`}
-            onClick={() => setBasic(prev => ({ ...(prev||{}), dynamic_by_context: !prev?.dynamic_by_context }))}>
-            <input type="checkbox" checked={!!basic?.dynamic_by_context} readOnly /> Dynamically decide (context & modality)
-          </label>
-        </div>
+
+        {(() => {
+          const priority = basic?.optimize_speed
+            ? 'speed'
+            : basic?.optimize_cost
+            ? 'cost'
+            : basic?.optimize_performance
+            ? 'performance'
+            : null;
+
+          const setPriority = (p: 'speed' | 'cost' | 'performance') => {
+            setBasic(prev => {
+              const next = { ...(prev || {}) } as RouteProfile['basic'];
+              const currently = priority;
+              if (currently === p) {
+                // toggle off -> none selected
+                next.optimize_speed = false;
+                next.optimize_cost = false;
+                next.optimize_performance = false;
+              } else {
+                next.optimize_speed = p === 'speed';
+                next.optimize_cost = p === 'cost';
+                next.optimize_performance = p === 'performance';
+              }
+              return next;
+            });
+          };
+
+          const baseBtn = 'px-3 py-2 text-sm border select-none focus:outline-none focus:ring-2 focus:ring-emerald-500';
+          const off = 'bg-gray-900/60 border-gray-700 text-gray-300 hover:bg-gray-800 hover:border-gray-600';
+          const on = 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200';
+
+          return (
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-gray-400 mb-2">Priority (single-select)</div>
+                <div role="group" aria-label="Priority" className="inline-flex rounded-md overflow-hidden">
+                  <button
+                    type="button"
+                    aria-pressed={priority === 'speed'}
+                    onClick={() => setPriority('speed')}
+                    className={`${baseBtn} ${priority === 'speed' ? on : off} rounded-l-md`}
+                  >
+                    Speed
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={priority === 'cost'}
+                    onClick={() => setPriority('cost')}
+                    className={`${baseBtn} ${priority === 'cost' ? on : off} -ml-px`}
+                  >
+                    Cost
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={priority === 'performance'}
+                    onClick={() => setPriority('performance')}
+                    className={`${baseBtn} ${priority === 'performance' ? on : off} -ml-px rounded-r-md`}
+                  >
+                    Performance
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-400 mb-2">Constraint</div>
+                <button
+                  type="button"
+                  aria-pressed={!!basic?.keep_onshore}
+                  onClick={() => setBasic(prev => ({ ...(prev||{}), keep_onshore: !prev?.keep_onshore }))}
+                  className={`${baseBtn} ${basic?.keep_onshore ? on : off} rounded-md`}
+                >
+                  Keep all data onshore
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </section>
 
       {/* Advanced section */}
@@ -200,36 +319,59 @@ export function RoutingConfigurator() {
               Latency Budget (p95 ms)
               <span className="ml-2 align-middle"><Tooltip label="Target 95th percentile latency. Models above this receive penalties; faster models get a boost. Example: 400ms for chat UX, 1500ms for batch." /></span>
             </label>
-            <input type="number" placeholder="e.g. 400" value={prefs.latency_budget_ms ?? ''}
-              onChange={(e) => setPrefs(prev => ({ ...prev, latency_budget_ms: e.target.value ? Number(e.target.value) : undefined }))}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white" />
+            <StepperInput
+              aria-label="latency budget"
+              value={prefs.latency_budget_ms}
+              onChange={(next) => setPrefs(prev => ({ ...prev, latency_budget_ms: next }))}
+              step={50}
+              min={50}
+              placeholder="e.g. 400"
+            />
           </div>
           <div>
             <label className="block text-gray-300 mb-1">
               Max Cost per 1k tokens (AUD)
               <span className="ml-2 align-middle"><Tooltip label="Upper bound for price. Example: 0.015 AUD/1k tokens. More expensive targets are penalized or disqualified." /></span>
             </label>
-            <input type="number" step="0.001" placeholder="e.g. 0.015" value={prefs.max_cost_per_1k_aud ?? ''}
-              onChange={(e) => setPrefs(prev => ({ ...prev, max_cost_per_1k_aud: e.target.value ? Number(e.target.value) : undefined }))}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white" />
+            <StepperInput
+              aria-label="max cost per 1k tokens"
+              value={prefs.max_cost_per_1k_aud}
+              onChange={(next) => setPrefs(prev => ({ ...prev, max_cost_per_1k_aud: next }))}
+              step={0.001}
+              min={0}
+              placeholder="e.g. 0.015"
+              inputProps={{ step: 0.001 }}
+            />
           </div>
           <div>
             <label className="block text-gray-300 mb-1">
               Min Quality Score
               <span className="ml-2 align-middle"><Tooltip label="Minimum acceptable quality score (0–10). Scores can come from internal evals. Example: 7.5 for high‑risk tasks." /></span>
             </label>
-            <input type="number" step="0.1" placeholder="e.g. 7.5" value={prefs.min_quality_score ?? ''}
-              onChange={(e) => setPrefs(prev => ({ ...prev, min_quality_score: e.target.value ? Number(e.target.value) : undefined }))}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white" />
+            <StepperInput
+              aria-label="minimum quality score"
+              value={prefs.min_quality_score}
+              onChange={(next) => setPrefs(prev => ({ ...prev, min_quality_score: next }))}
+              step={0.1}
+              min={0}
+              max={10}
+              placeholder="e.g. 7.5"
+              inputProps={{ step: 0.1 }}
+            />
           </div>
           <div>
             <label className="block text-gray-300 mb-1">
               Required Output Tokens
               <span className="ml-2 align-middle"><Tooltip label="Minimum tokens the model must be able to generate for one response. Example: 2048 for long summaries." /></span>
             </label>
-            <input type="number" placeholder="e.g. 2048" value={prefs.required_output_tokens ?? ''}
-              onChange={(e) => setPrefs(prev => ({ ...prev, required_output_tokens: e.target.value ? Number(e.target.value) : undefined }))}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white" />
+            <StepperInput
+              aria-label="required output tokens"
+              value={prefs.required_output_tokens}
+              onChange={(next) => setPrefs(prev => ({ ...prev, required_output_tokens: next }))}
+              step={256}
+              min={0}
+              placeholder="e.g. 2048"
+            />
           </div>
         </div>
 

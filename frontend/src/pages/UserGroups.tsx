@@ -2,10 +2,15 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { PageLayout, Panel } from '../components/PageLayout';
+import { productAccess } from '../utils/productAccess';
 
 export function UserGroups() {
   const queryClient = useQueryClient();
   const { data: groups } = useQuery({ queryKey: ['userGroups'], queryFn: () => apiClient.getUserGroups() });
+  const [pagList, setPagList] = React.useState(() => productAccess.list());
+  React.useEffect(() => {
+    setPagList(productAccess.list());
+  }, []);
   const { data: profiles } = useQuery({ queryKey: ['routeProfiles'], queryFn: () => apiClient.getRouteProfiles() });
   const { data: pools } = useQuery({ queryKey: ['modelPools'], queryFn: () => apiClient.getModelPools() });
   const { data: policies } = useQuery({ queryKey: ['policies'], queryFn: () => apiClient.getPolicies() });
@@ -43,6 +48,17 @@ export function UserGroups() {
                 <button onClick={() => deleteGroup.mutate(g.id)} className="px-2 py-1 text-xs rounded bg-red-600 hover:bg-red-500 text-white">Delete</button>
               </div>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <label className="block text-gray-300 mb-1">Product Access Group</label>
+                  <select
+                    value={productAccess.getAssignment(g.id) || ''}
+                    onChange={(e) => { productAccess.setAssignment(g.id, e.target.value || undefined); setPagList(productAccess.list()); }}
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
+                  >
+                    <option value="">-- Not assigned --</option>
+                    {pagList.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-gray-300 mb-1">Routing Profile</label>
                   <select value={g.route_profile_id || ''} onChange={(e) => updateGroup.mutate({ id: g.id, patch: { route_profile_id: e.target.value } })} className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white">
@@ -109,4 +125,3 @@ export function UserGroups() {
 }
 
 export default UserGroups;
-

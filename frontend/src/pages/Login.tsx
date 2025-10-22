@@ -2,8 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
+import { useBranding } from '../contexts/BrandingContext';
 
 const ROLES: { value: UserRole; label: string; blurb: string }[] = [
+  {
+    value: 'chat',
+    label: 'Chat User',
+    blurb: 'Access only the Chat User Interface for conversations.'
+  },
   {
     value: 'viewer',
     label: 'Viewer',
@@ -27,15 +33,21 @@ const ROLES: { value: UserRole; label: string; blurb: string }[] = [
 ];
 
 export function Login() {
+  const { brandName, poweredBySuffix, setOrgId } = useBranding();
   const [selectedRole, setSelectedRole] = useState<UserRole>('viewer');
-  const [orgId, setOrgId] = useState('');
+  const [orgId, setOrg] = useState(() => localStorage.getItem('auzguard_org_id') || '');
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    setOrgId?.(orgId || undefined);
     await login(selectedRole, orgId || undefined);
-    navigate('/dashboard');
+    if (selectedRole === 'chat') {
+      navigate('/chat-ui');
+    } else {
+      navigate('/dashboard');
+    }
   };
 
   return (
@@ -47,8 +59,11 @@ export function Login() {
         <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_420px] items-center">
           <section className="space-y-8">
             <h1 className="text-4xl font-semibold leading-tight">
-              Welcome to AuzGuard — your sovereign AI command centre.
+              Welcome to {brandName} — your sovereign AI command centre.
             </h1>
+            {brandName !== 'AuzGuard' && (
+              <div className="text-sm text-gray-400">{poweredBySuffix || 'powered by AuzGuard'}</div>
+            )}
             <p className="text-lg text-gray-300 max-w-xl">
               Pick a role to explore. We'll mint a scoped session with pre-baked permissions so you can experience the gateway from that perspective.
             </p>
@@ -96,10 +111,14 @@ export function Login() {
                   name="orgId"
                   type="text"
                   value={orgId}
-                  onChange={(event) => setOrgId(event.target.value)}
+                  onChange={(event) => setOrg(event.target.value)}
                   placeholder="e.g. bank-anz or fintech-42"
                   className="form-input"
                 />
+                <div className="flex gap-2 mt-1">
+                  <button type="button" onClick={() => setOrgId?.(orgId || undefined)} className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white">Apply Brand</button>
+                  <button type="button" onClick={() => { setOrg(''); setOrgId?.(undefined); }} className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white">Clear</button>
+                </div>
               </div>
 
               <button
@@ -119,4 +138,3 @@ export function Login() {
     </div>
   );
 }
-

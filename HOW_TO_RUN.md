@@ -178,6 +178,37 @@ npm start
 
 The backend serves both the API and the frontend static files on `http://localhost:3001`.
 
+## Branding (White Label)
+
+You can customize the company name and logo for each instance of the frontend.
+
+Configure via `frontend/.env` (copy from the example):
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+Edit `frontend/.env` and set:
+
+```env
+# Display name across the UI (sidebar, landing, login, chat)
+VITE_BRAND_NAME=Your Company Name
+
+# Optional: logo URL for the sidebar brand area
+VITE_BRAND_LOGO_URL=https://your.cdn.com/path/to/logo.png
+
+# Small tagline text (used where appropriate, e.g., Chat UI)
+VITE_BRAND_POWERED_BY=powered by AuzGuard
+```
+
+Examples:
+- For a CBA deployment, set `VITE_BRAND_NAME=CBA` and the logo URL. The Chat UI will show “CBA Chat — powered by AuzGuard”.
+- If you omit the logo URL, only the name renders.
+
+### Dynamic (tenant-aware) branding
+
+The frontend fetches branding from the backend at `/api/branding`, optionally using an `org_id` parameter. On the Login page, enter an Organisation ID and click "Apply Brand" to refresh the branding for that tenant. The selected `org_id` is stored in localStorage and added to the URL.
+
 ## Accessing the Application
 
 Once the application is running:

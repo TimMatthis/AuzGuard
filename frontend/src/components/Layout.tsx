@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useBranding } from '../contexts/BrandingContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,8 +38,25 @@ const NAV_LINKS: NavItem[] = [
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { brandName, logoUrl } = useBranding();
 
   const isActive = (href: string) => location.pathname === href;
+
+  const links = React.useMemo<NavItem[]>(() => {
+    if (user?.role === 'chat') {
+      return [
+        { type: 'section', name: 'Chat Interface' },
+        { type: 'link', name: 'Chat User Interface', href: '/chat-ui', icon: 'UI' },
+      ];
+    }
+    // Insert Product Access Groups under user settings
+    const base = [...NAV_LINKS];
+    const insertIdx = base.findIndex(x => x.type === 'link' && x.name === 'User Groups');
+    if (insertIdx !== -1) {
+      base.splice(insertIdx + 2, 0, { type: 'link', name: 'Product Access Groups', href: '/product-access-groups', icon: 'PAG' });
+    }
+    return base;
+  }, [user?.role]);
 
   return (
     <div className="app-shell">
@@ -46,14 +64,17 @@ export function Layout({ children }: LayoutProps) {
       <div className="app-shell__inner">
         <aside className="app-sidebar">
           <div className="app-sidebar__brand">
-            <Link to="/dashboard">
-              <span>AuzGuard</span>
+            <Link to={user?.role === 'chat' ? '/chat-ui' : '/dashboard'}>
+              {logoUrl ? (
+                <img src={logoUrl} alt={`${brandName} logo`} style={{ maxHeight: 28, marginBottom: 6 }} />
+              ) : null}
+              <span>{brandName}</span>
               <small>Sovereign AI Gateway</small>
             </Link>
           </div>
 
           <nav className="app-nav">
-            {NAV_LINKS.map((item, idx) => (
+            {links.map((item, idx) => (
               item.type === 'section' ? (
                 <div key={`section-${item.name}-${idx}`} className="app-nav__section">
                   <span className="app-nav__section-label">{item.name}</span>

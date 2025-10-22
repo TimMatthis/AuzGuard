@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useBranding } from '../contexts/BrandingContext';
 
 export function Landing() {
+  const { brandName } = useBranding();
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center overflow-hidden">
       <div className="hero-backdrop" />
@@ -10,7 +12,7 @@ export function Landing() {
       <div className="max-w-5xl mx-auto px-6 py-20 text-center relative z-10">
         <div className="mb-8">
           <h1 className="text-5xl sm:text-6xl font-bold mb-4">
-            <span className="brand-gradient-text">AuzGuard</span>
+            <span className="brand-gradient-text">{brandName}</span>
           </h1>
           <p className="text-xl text-gray-300 mb-6">Sovereign AI gateway for Australian compliance</p>
           <p className="text-gray-400 max-w-2xl mx-auto">
@@ -44,25 +46,18 @@ export function Landing() {
             <p className="text-xs uppercase tracking-widest text-blue-300">Guardrails</p>
             <h3 className="text-2xl font-semibold text-white mt-1">Rules & Policies</h3>
             <p className="text-gray-300 mt-2 text-sm">Create, test, and publish rules that protect privacy, safety and compliance across your AI traffic.</p>
-            <div className="mt-4 flex gap-3">
-              <Link to="/policies" className="cta-button">Open Policies</Link>
-              <Link to="/simulator" className="px-5 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors border border-white/10">Simulator</Link>
-            </div>
+            {/* Buttons removed per landing page simplification */}
           </div>
           <div className="glass-card p-6 text-left">
             <p className="text-xs uppercase tracking-widest text-emerald-300">Routing</p>
             <h3 className="text-2xl font-semibold text-white mt-1">Model Gardens</h3>
             <p className="text-gray-300 mt-2 text-sm">Route requests to the right model endpoints using health, latency, and compliance-aware profiles.</p>
-            <div className="mt-4 flex gap-3">
-              <Link to="/models" className="cta-button">Open Model Gardens</Link>
-              <Link to="/models" className="px-5 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors border border-white/10">Model Gardens</Link>
-            </div>
+            {/* Buttons removed per landing page simplification */}
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link to="/login" className="cta-button">Get Started</Link>
-          <Link to="/login" className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors border border-white/10">Learn More</Link>
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-700">

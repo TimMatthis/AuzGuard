@@ -19,7 +19,30 @@ export type Jurisdiction =
 
 export type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
-export type UserRole = "admin" | "compliance" | "developer" | "viewer";
+export type UserRole = "admin" | "compliance" | "developer" | "viewer" | "chat";
+
+// Product access control (frontend-only types for UI/demo)
+export type ProductKey =
+  | 'dashboard'
+  | 'policies'
+  | 'simulator'
+  | 'audit'
+  | 'routing_config'
+  | 'models'
+  | 'decisions'
+  | 'chat'
+  | 'chat_ui'
+  | 'user_groups'
+  | 'settings';
+
+export interface ProductAccessGroup {
+  id: string;
+  name: string;
+  description?: string;
+  products: ProductKey[];
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Rule {
   rule_id: string;

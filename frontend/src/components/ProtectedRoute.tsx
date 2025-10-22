@@ -58,7 +58,8 @@ function hasPermission(userRole: UserRole, action: string): boolean {
     viewer: ['read'],
     developer: ['read', 'edit_rules', 'simulate'],
     compliance: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides'],
-    admin: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides', 'manage_routes', 'manage_users', 'manage_settings']
+    admin: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides', 'manage_routes', 'manage_users', 'manage_settings'],
+    chat: []
   };
 
   return permissions[userRole]?.includes(action) || false;
