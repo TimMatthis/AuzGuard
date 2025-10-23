@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 import { useBranding } from '../contexts/BrandingContext';
+import { ThemeToggleCompact } from '../components/ThemeToggle';
 
 const ROLES: { value: UserRole; label: string; blurb: string }[] = [
   {
@@ -54,6 +55,11 @@ export function Login() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
       <div className="hero-backdrop" />
       <div className="hero-orb hero-orb--login" />
+      
+      {/* Theme toggle in top-right corner */}
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggleCompact />
+      </div>
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-20">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_420px] items-center">

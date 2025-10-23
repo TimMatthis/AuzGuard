@@ -29,13 +29,13 @@ import { routingConfigRoutes } from './routes/routingConfig';
 import { RoutingProfilesService } from './services/routingProfiles';
 import { brandingRoutes } from './routes/branding';
 
-// Initialize services
-const prisma = new PrismaClient();
-const ajv = new Ajv();
-
 // Load JSON schemas
 const ruleSchema: any = require('../schemas/auzguard_rule_schema_v1.json');
 const rulesetExample: any = require('../schemas/auzguard_ruleset_au_base_v1.json');
+
+// Initialize services
+const prisma = new PrismaClient();
+const ajv = new Ajv();
 
 // Compose a Policy (ruleset) schema that allows an empty rules array on creation
 const policySchema: any = {
@@ -221,6 +221,16 @@ const gracefulShutdown = async (signal: string) => {
     process.exit(0);
   } catch (error) {
     const err = error as Error;
+    // Log startup error details before exiting so nodemon shows the cause
+    try {
+      const msg = err?.message || String(err);
+      console.error('AuzGuard server startup failed:', msg);
+      if ((err as any)?.stack) {
+        console.error((err as any).stack);
+      }
+    } catch (_) {
+      // no-op
+    }
     process.exit(1);
   }
 };
@@ -247,6 +257,13 @@ async function start() {
 
   } catch (error) {
     const err = error as Error;
+    try {
+      const msg = err?.message || String(err);
+      console.error('AuzGuard server startup failed during start():', msg);
+      if ((err as any)?.stack) {
+        console.error((err as any).stack);
+      }
+    } catch (_) {}
     process.exit(1);
   }
 }

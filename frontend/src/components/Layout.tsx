@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBranding } from '../contexts/BrandingContext';
+import { ThemeToggleCompact } from './ThemeToggle';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -104,9 +105,12 @@ export function Layout({ children }: LayoutProps) {
                 <small>{user?.role ?? 'viewer'} role</small>
               </div>
             </div>
-            <button onClick={logout} className="app-navbar__logout">
-              Logout
-            </button>
+            <div className="flex items-center gap-3">
+              <ThemeToggleCompact />
+              <button onClick={logout} className="app-navbar__logout">
+                Logout
+              </button>
+            </div>
           </header>
 
           <div className="app-content">

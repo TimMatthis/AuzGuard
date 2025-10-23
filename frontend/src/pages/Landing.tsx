@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useBranding } from '../contexts/BrandingContext';
+import { ThemeToggleCompact } from '../components/ThemeToggle';
 
 export function Landing() {
   const { brandName } = useBranding();
@@ -8,6 +9,11 @@ export function Landing() {
     <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center overflow-hidden">
       <div className="hero-backdrop" />
       <div className="hero-orb" />
+      
+      {/* Theme toggle in top-right corner */}
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggleCompact />
+      </div>
 
       <div className="max-w-5xl mx-auto px-6 py-20 text-center relative z-10">
         <div className="mb-8">
