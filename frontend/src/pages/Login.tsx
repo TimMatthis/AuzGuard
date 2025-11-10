@@ -5,7 +5,7 @@ import { UserRole } from '../types';
 import { useBranding } from '../contexts/BrandingContext';
 import { ThemeToggleCompact } from '../components/ThemeToggle';
 
-type TabType = 'login' | 'register' | 'company' | 'demo';
+type TabType = 'login' | 'register' | 'demo';
 
 const ROLES: { value: UserRole; label: string; blurb: string }[] = [
   {
@@ -47,23 +47,15 @@ export function Login() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Register form state
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
-  const [registerOrgId, setRegisterOrgId] = useState('');
-  const [registerError, setRegisterError] = useState('');
-  const [registerLoading, setRegisterLoading] = useState(false);
-
-  // Company signup form state
+  // Register/Company signup form state
   const [companySlug, setCompanySlug] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyAdminEmail, setCompanyAdminEmail] = useState('');
   const [companyAdminName, setCompanyAdminName] = useState('');
   const [companyAdminPassword, setCompanyAdminPassword] = useState('');
   const [companyConfirmPassword, setCompanyConfirmPassword] = useState('');
-  const [companyError, setCompanyError] = useState('');
-  const [companyLoading, setCompanyLoading] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   // Demo form state
   const [selectedRole, setSelectedRole] = useState<UserRole>('viewer');
@@ -89,52 +81,24 @@ export function Login() {
     setRegisterError('');
 
     // Validate passwords match
-    if (registerPassword !== registerConfirmPassword) {
+    if (companyAdminPassword !== companyConfirmPassword) {
       setRegisterError('Passwords do not match');
       return;
     }
 
     // Validate password strength
-    if (registerPassword.length < 8) {
-      setRegisterError('Password must be at least 8 characters');
-      return;
-    }
-
-    setRegisterLoading(true);
-
-    try {
-      await register(registerEmail, registerPassword, registerOrgId || undefined);
-      navigate('/dashboard');
-    } catch (error) {
-      setRegisterError(error instanceof Error ? error.message : 'Registration failed');
-    } finally {
-      setRegisterLoading(false);
-    }
-  };
-
-  const handleCompanySignup = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setCompanyError('');
-
-    // Validate passwords match
-    if (companyAdminPassword !== companyConfirmPassword) {
-      setCompanyError('Passwords do not match');
-      return;
-    }
-
-    // Validate password strength
     if (companyAdminPassword.length < 8) {
-      setCompanyError('Password must be at least 8 characters');
+      setRegisterError('Password must be at least 8 characters');
       return;
     }
 
     // Validate slug format
     if (!/^[a-z0-9-]+$/.test(companySlug)) {
-      setCompanyError('Company ID must contain only lowercase letters, numbers, and hyphens');
+      setRegisterError('Company ID must contain only lowercase letters, numbers, and hyphens');
       return;
     }
 
-    setCompanyLoading(true);
+    setRegisterLoading(true);
 
     try {
       const { apiClient } = await import('../api/client');
@@ -151,9 +115,9 @@ export function Login() {
       apiClient.setToken(response.token);
       navigate('/dashboard');
     } catch (error) {
-      setCompanyError(error instanceof Error ? error.message : 'Company registration failed');
+      setRegisterError(error instanceof Error ? error.message : 'Company registration failed');
     } finally {
-      setCompanyLoading(false);
+      setRegisterLoading(false);
     }
   };
 
@@ -210,11 +174,11 @@ export function Login() {
 
           <section className="glass-card p-8 space-y-6">
             {/* Tab Navigation */}
-            <div className="grid grid-cols-2 gap-1 p-1 bg-gray-800/50 rounded-lg">
+            <div className="flex gap-1 p-1 bg-gray-800/50 rounded-lg">
               <button
                 type="button"
                 onClick={() => setActiveTab('login')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'login' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -225,7 +189,7 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => setActiveTab('register')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'register' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -235,19 +199,8 @@ export function Login() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('company')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'company' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                New Company
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveTab('demo')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'demo' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -319,102 +272,8 @@ export function Login() {
               </>
             )}
 
-            {/* Register Form */}
+            {/* Register Form (Company Signup) */}
             {activeTab === 'register' && (
-              <>
-                <header className="space-y-2">
-                  <h2 className="text-2xl font-semibold">Create account</h2>
-                  <p className="text-sm text-gray-400">
-                    Register a new account to get started.
-                  </p>
-                </header>
-
-                <form className="space-y-5" onSubmit={handleRegister}>
-                  {registerError && (
-                    <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-                      {registerError}
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label htmlFor="registerEmail" className="text-sm font-medium text-gray-300">
-                      Email
-                    </label>
-                    <input
-                      id="registerEmail"
-                      name="email"
-                      type="email"
-                      required
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="form-input"
-                      autoComplete="email"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="registerPassword" className="text-sm font-medium text-gray-300">
-                      Password
-                    </label>
-                    <input
-                      id="registerPassword"
-                      name="password"
-                      type="password"
-                      required
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      placeholder="At least 8 characters"
-                      className="form-input"
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="registerConfirmPassword" className="text-sm font-medium text-gray-300">
-                      Confirm Password
-                    </label>
-                    <input
-                      id="registerConfirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      required
-                      value={registerConfirmPassword}
-                      onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                      placeholder="Confirm your password"
-                      className="form-input"
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="registerOrgId" className="text-sm font-medium text-gray-300">
-                      Organisation ID <span className="text-slate-400 font-normal">(optional)</span>
-                    </label>
-                    <input
-                      id="registerOrgId"
-                      name="orgId"
-                      type="text"
-                      value={registerOrgId}
-                      onChange={(e) => setRegisterOrgId(e.target.value)}
-                      placeholder="e.g. bank-anz or fintech-42"
-                      className="form-input"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={registerLoading}
-                    className="cta-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {registerLoading ? 'Creating account...' : 'Create account'}
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* Company Signup Form */}
-            {activeTab === 'company' && (
               <>
                 <header className="space-y-2">
                   <h2 className="text-2xl font-semibold">Create Your Company</h2>
@@ -423,10 +282,10 @@ export function Login() {
                   </p>
                 </header>
 
-                <form className="space-y-5" onSubmit={handleCompanySignup}>
-                  {companyError && (
+                <form className="space-y-5" onSubmit={handleRegister}>
+                  {registerError && (
                     <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-                      {companyError}
+                      {registerError}
                     </div>
                   )}
 
@@ -538,10 +397,10 @@ export function Login() {
 
                   <button
                     type="submit"
-                    disabled={companyLoading}
+                    disabled={registerLoading}
                     className="cta-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {companyLoading ? 'Creating company...' : 'Create Company & Admin Account'}
+                    {registerLoading ? 'Creating company...' : 'Create Company & Admin Account'}
                   </button>
                 </form>
 

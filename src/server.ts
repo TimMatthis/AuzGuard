@@ -206,7 +206,8 @@ async function registerPluginsAndRoutes() {
     prefix: '/api',
     userService,
     userGroupService,
-    authService
+    authService,
+    connectionManager: tenantConnectionManager
   });
 
   // Serve frontend build and enable SPA fallback for non-API routes
