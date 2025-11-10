@@ -9,6 +9,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient as MasterPrismaClient } from '../node_modules/.prisma/client-master';
 import Ajv from 'ajv';
 
 import { PolicyService } from './services/policy';
@@ -20,6 +21,8 @@ import { ModelGardenService } from './services/modelGarden';
 import { PreprocessorService } from './services/preprocessor';
 import { UserService } from './services/users';
 import { UserGroupService } from './services/userGroups';
+import { TenantProvisioningService } from './services/tenantProvisioning';
+import { TenantConnectionManager } from './services/tenantConnectionManager';
 
 import { policyRoutes } from './routes/policy';
 import { CatalogService } from './services/catalog';
@@ -31,6 +34,7 @@ import { routingConfigRoutes } from './routes/routingConfig';
 import { RoutingProfilesService } from './services/routingProfiles';
 import { brandingRoutes } from './routes/branding';
 import { userRoutes } from './routes/users';
+import { tenantRoutes } from './routes/tenants';
 
 // Load JSON schemas
 const ruleSchema: any = require('../schemas/auzguard_rule_schema_v1.json');
@@ -38,6 +42,7 @@ const rulesetExample: any = require('../schemas/auzguard_ruleset_au_base_v1.json
 
 // Initialize services
 const prisma = new PrismaClient();
+const masterPrisma = new MasterPrismaClient();
 const ajv = new Ajv();
 
 // Compose a Policy (ruleset) schema that allows an empty rules array on creation
@@ -73,6 +78,8 @@ const policyValidator = ajv.compile(policySchema);
 const userService = new UserService(prisma);
 const userGroupService = new UserGroupService(prisma);
 const authService = new AuthService(userService);
+const tenantConnectionManager = new TenantConnectionManager(masterPrisma);
+const tenantProvisioningService = new TenantProvisioningService(masterPrisma);
 const policyService = new PolicyService(prisma, policyValidator);
 const catalogService = new CatalogService();
 const evaluationService = new EvaluationService();
@@ -188,6 +195,13 @@ async function registerPluginsAndRoutes() {
 
   await fastify.register(brandingRoutes, { prefix: '/api' });
 
+  await fastify.register(tenantRoutes, {
+    prefix: '/api',
+    provisioningService: tenantProvisioningService,
+    connectionManager: tenantConnectionManager,
+    authService
+  });
+
   await fastify.register(userRoutes, {
     prefix: '/api',
     userService,
@@ -229,6 +243,8 @@ const gracefulShutdown = async (signal: string) => {
 
   try {
     await fastify.close();
+    await tenantConnectionManager.closeAllConnections();
+    await masterPrisma.$disconnect();
     await prisma.$disconnect();
     process.exit(0);
   } catch (error) {

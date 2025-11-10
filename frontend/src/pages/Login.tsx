@@ -5,7 +5,7 @@ import { UserRole } from '../types';
 import { useBranding } from '../contexts/BrandingContext';
 import { ThemeToggleCompact } from '../components/ThemeToggle';
 
-type TabType = 'login' | 'register' | 'demo';
+type TabType = 'login' | 'register' | 'company' | 'demo';
 
 const ROLES: { value: UserRole; label: string; blurb: string }[] = [
   {
@@ -55,6 +55,16 @@ export function Login() {
   const [registerError, setRegisterError] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
 
+  // Company signup form state
+  const [companySlug, setCompanySlug] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [companyAdminEmail, setCompanyAdminEmail] = useState('');
+  const [companyAdminName, setCompanyAdminName] = useState('');
+  const [companyAdminPassword, setCompanyAdminPassword] = useState('');
+  const [companyConfirmPassword, setCompanyConfirmPassword] = useState('');
+  const [companyError, setCompanyError] = useState('');
+  const [companyLoading, setCompanyLoading] = useState(false);
+
   // Demo form state
   const [selectedRole, setSelectedRole] = useState<UserRole>('viewer');
   const [demoOrgId, setDemoOrgId] = useState(() => localStorage.getItem('auzguard_org_id') || '');
@@ -99,6 +109,51 @@ export function Login() {
       setRegisterError(error instanceof Error ? error.message : 'Registration failed');
     } finally {
       setRegisterLoading(false);
+    }
+  };
+
+  const handleCompanySignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setCompanyError('');
+
+    // Validate passwords match
+    if (companyAdminPassword !== companyConfirmPassword) {
+      setCompanyError('Passwords do not match');
+      return;
+    }
+
+    // Validate password strength
+    if (companyAdminPassword.length < 8) {
+      setCompanyError('Password must be at least 8 characters');
+      return;
+    }
+
+    // Validate slug format
+    if (!/^[a-z0-9-]+$/.test(companySlug)) {
+      setCompanyError('Company ID must contain only lowercase letters, numbers, and hyphens');
+      return;
+    }
+
+    setCompanyLoading(true);
+
+    try {
+      const { apiClient } = await import('../api/client');
+      const response = await apiClient.registerCompany({
+        slug: companySlug,
+        company_name: companyName,
+        admin_email: companyAdminEmail,
+        admin_name: companyAdminName,
+        admin_password: companyAdminPassword
+      });
+
+      // Store token and navigate
+      localStorage.setItem('auzguard_token', response.token);
+      apiClient.setToken(response.token);
+      navigate('/dashboard');
+    } catch (error) {
+      setCompanyError(error instanceof Error ? error.message : 'Company registration failed');
+    } finally {
+      setCompanyLoading(false);
     }
   };
 
@@ -155,11 +210,11 @@ export function Login() {
 
           <section className="glass-card p-8 space-y-6">
             {/* Tab Navigation */}
-            <div className="flex gap-1 p-1 bg-gray-800/50 rounded-lg">
+            <div className="grid grid-cols-2 gap-1 p-1 bg-gray-800/50 rounded-lg">
               <button
                 type="button"
                 onClick={() => setActiveTab('login')}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'login' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -170,7 +225,7 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => setActiveTab('register')}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'register' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -180,8 +235,19 @@ export function Login() {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab('company')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'company' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                New Company
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab('demo')}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'demo' 
                     ? 'bg-blue-600 text-white' 
                     : 'text-gray-400 hover:text-gray-200'
@@ -344,6 +410,144 @@ export function Login() {
                     {registerLoading ? 'Creating account...' : 'Create account'}
                   </button>
                 </form>
+              </>
+            )}
+
+            {/* Company Signup Form */}
+            {activeTab === 'company' && (
+              <>
+                <header className="space-y-2">
+                  <h2 className="text-2xl font-semibold">Create Your Company</h2>
+                  <p className="text-sm text-gray-400">
+                    Set up a new company with its own isolated database and admin account.
+                  </p>
+                </header>
+
+                <form className="space-y-5" onSubmit={handleCompanySignup}>
+                  {companyError && (
+                    <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+                      {companyError}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label htmlFor="companySlug" className="text-sm font-medium text-gray-300">
+                      Company ID <span className="text-slate-400 font-normal">(unique identifier)</span>
+                    </label>
+                    <input
+                      id="companySlug"
+                      name="slug"
+                      type="text"
+                      required
+                      value={companySlug}
+                      onChange={(e) => setCompanySlug(e.target.value.toLowerCase())}
+                      placeholder="acme-corp"
+                      className="form-input"
+                      pattern="[a-z0-9-]+"
+                    />
+                    <p className="text-xs text-gray-500">Lowercase letters, numbers, and hyphens only</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="companyName" className="text-sm font-medium text-gray-300">
+                      Company Name
+                    </label>
+                    <input
+                      id="companyName"
+                      name="companyName"
+                      type="text"
+                      required
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Acme Corporation"
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="border-t border-gray-700 pt-4">
+                    <h3 className="text-sm font-medium text-gray-300 mb-3">Admin Account</h3>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label htmlFor="companyAdminName" className="text-sm font-medium text-gray-300">
+                          Admin Name <span className="text-slate-400 font-normal">(optional)</span>
+                        </label>
+                        <input
+                          id="companyAdminName"
+                          name="adminName"
+                          type="text"
+                          value={companyAdminName}
+                          onChange={(e) => setCompanyAdminName(e.target.value)}
+                          placeholder="John Doe"
+                          className="form-input"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="companyAdminEmail" className="text-sm font-medium text-gray-300">
+                          Admin Email
+                        </label>
+                        <input
+                          id="companyAdminEmail"
+                          name="adminEmail"
+                          type="email"
+                          required
+                          value={companyAdminEmail}
+                          onChange={(e) => setCompanyAdminEmail(e.target.value)}
+                          placeholder="admin@acme.com"
+                          className="form-input"
+                          autoComplete="email"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="companyAdminPassword" className="text-sm font-medium text-gray-300">
+                          Admin Password
+                        </label>
+                        <input
+                          id="companyAdminPassword"
+                          name="adminPassword"
+                          type="password"
+                          required
+                          value={companyAdminPassword}
+                          onChange={(e) => setCompanyAdminPassword(e.target.value)}
+                          placeholder="At least 8 characters"
+                          className="form-input"
+                          autoComplete="new-password"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="companyConfirmPassword" className="text-sm font-medium text-gray-300">
+                          Confirm Password
+                        </label>
+                        <input
+                          id="companyConfirmPassword"
+                          name="confirmPassword"
+                          type="password"
+                          required
+                          value={companyConfirmPassword}
+                          onChange={(e) => setCompanyConfirmPassword(e.target.value)}
+                          placeholder="Confirm admin password"
+                          className="form-input"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={companyLoading}
+                    className="cta-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {companyLoading ? 'Creating company...' : 'Create Company & Admin Account'}
+                  </button>
+                </form>
+
+                <p className="text-xs text-gray-400 text-center">
+                  Creates an isolated database for your company with complete data separation.
+                </p>
               </>
             )}
 

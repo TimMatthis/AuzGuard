@@ -281,6 +281,35 @@ class ApiClient {
   async register(email: string, password: string, org_id?: string, role?: string): Promise<{ user: import('../types').User; token: string }> {
     return this.request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, org_id, role }) });
   }
+  
+  // Multi-tenant company management
+  async registerCompany(data: {
+    slug: string;
+    company_name: string;
+    admin_email: string;
+    admin_name?: string;
+    admin_password: string;
+    plan?: string;
+  }): Promise<{ success: boolean; tenant: { id: string; slug: string; company_name: string }; user: any; token: string }> {
+    return this.request('/company/register', { method: 'POST', body: JSON.stringify(data) });
+  }
+  
+  async tenantLogin(email: string, password: string, tenant_slug?: string): Promise<{
+    success: boolean;
+    tenant: { slug: string; company_name: string };
+    user: any;
+    token: string;
+  }> {
+    return this.request('/tenant/login', { method: 'POST', body: JSON.stringify({ email, password, tenant_slug }) });
+  }
+  
+  async checkSlugAvailability(slug: string): Promise<{ available: boolean }> {
+    return this.request(`/company/check/${slug}`);
+  }
+  
+  async getCompanyInfo(slug: string): Promise<{ slug: string; company_name: string; status: string; plan: string }> {
+    return this.request(`/company/${slug}`);
+  }
   async getUsers(filters?: { org_id?: string; user_group_id?: string; is_active?: boolean }): Promise<import('../types').User[]> {
     const qs = new URLSearchParams();
     if (filters?.org_id) qs.append('org_id', filters.org_id);
