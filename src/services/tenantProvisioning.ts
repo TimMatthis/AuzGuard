@@ -147,10 +147,15 @@ export class TenantProvisioningService {
   }
 
   private async createDatabase(dbName: string): Promise<void> {
-    const createDbCommand = `PGPASSWORD=${this.dbPassword} psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "CREATE DATABASE ${dbName};"`;
+    const createDbCommand = `psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "CREATE DATABASE ${dbName};"`;
     
     try {
-      await execAsync(createDbCommand);
+      await execAsync(createDbCommand, {
+        env: {
+          ...process.env,
+          PGPASSWORD: this.dbPassword
+        }
+      });
       console.log(`Database ${dbName} created successfully`);
     } catch (error: any) {
       // Check if error is because database already exists
@@ -163,10 +168,15 @@ export class TenantProvisioningService {
   }
 
   private async dropDatabase(dbName: string): Promise<void> {
-    const dropDbCommand = `PGPASSWORD=${this.dbPassword} psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "DROP DATABASE IF EXISTS ${dbName};"`;
+    const dropDbCommand = `psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "DROP DATABASE IF EXISTS ${dbName};"`;
     
     try {
-      await execAsync(dropDbCommand);
+      await execAsync(dropDbCommand, {
+        env: {
+          ...process.env,
+          PGPASSWORD: this.dbPassword
+        }
+      });
       console.log(`Database ${dbName} dropped`);
     } catch (error: any) {
       console.error(`Failed to drop database: ${error.message}`);
@@ -175,10 +185,15 @@ export class TenantProvisioningService {
 
   private async runTenantMigrations(tenantDbUrl: string): Promise<void> {
     // Set the DATABASE_URL env var temporarily and run migrations
-    const migrationCommand = `DATABASE_URL="${tenantDbUrl}" npx prisma migrate deploy --schema=./prisma/schema-tenant.prisma`;
+    const migrationCommand = `npx prisma migrate deploy --schema=./prisma/schema-tenant.prisma`;
     
     try {
-      const { stdout, stderr } = await execAsync(migrationCommand);
+      const { stdout, stderr } = await execAsync(migrationCommand, {
+        env: {
+          ...process.env,
+          DATABASE_URL: tenantDbUrl
+        }
+      });
       console.log('Migration output:', stdout);
       if (stderr) console.error('Migration stderr:', stderr);
     } catch (error: any) {
