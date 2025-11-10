@@ -276,7 +276,7 @@ class ApiClient {
   }
   // User management
   async login(email: string, password: string): Promise<{ user: import('../types').User; token: string }> {
-    return this.request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    return this.request('/tenant/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   }
   async register(email: string, password: string, org_id?: string, role?: string): Promise<{ user: import('../types').User; token: string }> {
     return this.request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, org_id, role }) });
@@ -290,7 +290,7 @@ class ApiClient {
     admin_name?: string;
     admin_password: string;
     plan?: string;
-  }): Promise<{ success: boolean; email_verification_required?: boolean; message?: string; tenant: { id: string; slug: string; company_name: string }; user: any; token: string }> {
+  }): Promise<{ success: boolean; email_verification_required?: boolean; message?: string; tenant: { id: string; slug: string; company_name: string }; user: any; token: string; verification_url?: string }> {
     return this.request('/company/register', { method: 'POST', body: JSON.stringify(data) });
   }
   
@@ -319,6 +319,15 @@ class ApiClient {
   
   async getCompanyInfo(slug: string): Promise<{ slug: string; company_name: string; status: string; plan: string }> {
     return this.request(`/company/${slug}`);
+  }
+  
+  // Tenant branding endpoints
+  async getTenantBranding(): Promise<{ id?: string; company_name: string; logo_url: string | null }> {
+    return this.request('/tenant/branding');
+  }
+  
+  async updateTenantBranding(data: { company_name?: string; logo_url?: string | null }): Promise<{ id: string; company_name: string; logo_url: string | null }> {
+    return this.request('/tenant/branding', { method: 'PUT', body: JSON.stringify(data) });
   }
   async getUsers(filters?: { org_id?: string; user_group_id?: string; is_active?: boolean }): Promise<import('../types').User[]> {
     const qs = new URLSearchParams();

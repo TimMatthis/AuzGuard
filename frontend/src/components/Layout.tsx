@@ -31,8 +31,10 @@ const NAV_LINKS: NavItem[] = [
   { type: 'link', name: 'Chat Router', href: '/chat', icon: 'CHAT' },
   { type: 'link', name: 'Chat User Interface', href: '/chat-ui', icon: 'UI' },
 
-  { type: 'section', name: 'User Settings' },
-  { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'USR' },
+  { type: 'section', name: 'Admin & Settings' },
+  { type: 'link', name: 'Users', href: '/users', icon: 'USR' },
+  { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'GRP' },
+  { type: 'link', name: 'Company Admin', href: '/company-admin', icon: 'CO' },
   { type: 'link', name: 'Settings', href: '/settings', icon: 'CFG' }
 ];
 

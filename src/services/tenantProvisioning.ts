@@ -2,6 +2,7 @@
 // Handles creation of new tenant databases and initialization
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { Client } from 'pg';
 import { PrismaClient as MasterPrismaClient } from '../../node_modules/.prisma/client-master';
 import { PrismaClient } from '@prisma/client';
 
@@ -148,39 +149,49 @@ export class TenantProvisioningService {
   }
 
   private async createDatabase(dbName: string): Promise<void> {
-    const createDbCommand = `psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "CREATE DATABASE ${dbName};"`;
+    // Use pg client to create database (works on all platforms)
+    const client = new Client({
+      host: this.dbHost,
+      port: parseInt(this.dbPort),
+      user: this.dbUser,
+      password: this.dbPassword,
+      database: 'postgres' // Connect to postgres database to create new ones
+    });
     
     try {
-      await execAsync(createDbCommand, {
-        env: {
-          ...process.env,
-          PGPASSWORD: this.dbPassword
-        }
-      });
+      await client.connect();
+      await client.query(`CREATE DATABASE "${dbName}"`);
       console.log(`Database ${dbName} created successfully`);
     } catch (error: any) {
       // Check if error is because database already exists
-      if (error.message?.includes('already exists')) {
+      if (error.code === '42P04') {
         console.log(`Database ${dbName} already exists, continuing...`);
       } else {
-        throw new Error(`Failed to create database: ${error.message}`);
+        throw new Error(`Failed to create database: ${error.message}. Please ensure PostgreSQL is properly configured and accessible.`);
       }
+    } finally {
+      await client.end();
     }
   }
 
   private async dropDatabase(dbName: string): Promise<void> {
-    const dropDbCommand = `psql -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d postgres -c "DROP DATABASE IF EXISTS ${dbName};"`;
+    // Use pg client to drop database (works on all platforms)
+    const client = new Client({
+      host: this.dbHost,
+      port: parseInt(this.dbPort),
+      user: this.dbUser,
+      password: this.dbPassword,
+      database: 'postgres'
+    });
     
     try {
-      await execAsync(dropDbCommand, {
-        env: {
-          ...process.env,
-          PGPASSWORD: this.dbPassword
-        }
-      });
+      await client.connect();
+      await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
       console.log(`Database ${dbName} dropped`);
     } catch (error: any) {
       console.error(`Failed to drop database: ${error.message}`);
+    } finally {
+      await client.end();
     }
   }
 

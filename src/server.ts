@@ -193,7 +193,11 @@ async function registerPluginsAndRoutes() {
     authService
   });
 
-  await fastify.register(brandingRoutes, { prefix: '/api' });
+  await fastify.register(brandingRoutes, { 
+    prefix: '/api',
+    authService,
+    connectionManager: tenantConnectionManager
+  });
 
   await fastify.register(tenantRoutes, {
     prefix: '/api',
@@ -629,6 +633,8 @@ async function ensureProfanityRulesEverywhere() {
 }
 
 start();
+
+
 
 
 

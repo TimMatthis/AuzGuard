@@ -56,6 +56,7 @@ export function Login() {
   const [registerSuccess, setRegisterSuccess] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerStep, setRegisterStep] = useState('');
+  const [verificationUrl, setVerificationUrl] = useState('');
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
@@ -129,6 +130,10 @@ export function Login() {
       if (response.email_verification_required) {
         setRegisterSuccess(response.message || 'Company created! Please check your email to verify your account.');
         setRegisterStep('verification-sent');
+        // Store verification URL if provided (development mode)
+        if (response.verification_url) {
+          setVerificationUrl(response.verification_url);
+        }
         // DON'T store token or navigate yet - user must verify email first
       } else {
         // Fallback for older flow (shouldn't happen with current backend)
@@ -341,6 +346,25 @@ export function Login() {
                         ⏰ The verification link will expire in 24 hours.
                       </p>
                     </div>
+                    
+                    {verificationUrl && (
+                      <div className="px-4 py-4 rounded-lg bg-green-500/10 border border-green-500/30 text-left space-y-2">
+                        <p className="text-sm text-green-300 font-semibold">
+                          🔗 Development Mode - Verification Link:
+                        </p>
+                        <a 
+                          href={verificationUrl}
+                          className="text-xs text-blue-400 hover:text-blue-300 break-all block underline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {verificationUrl}
+                        </a>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Click the link above to verify your email instantly (for testing)
+                        </p>
+                      </div>
+                    )}
                     <div className="space-y-3">
                       <p className="text-sm text-gray-400">
                         Didn't receive the email? Check your spam folder.

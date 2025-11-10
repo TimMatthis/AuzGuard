@@ -21,6 +21,8 @@ import { Decisions } from './pages/Decisions'
 import { RoutingConfigurator } from './pages/RoutingConfigurator'
 import { UserGroups } from './pages/UserGroups'
 import { ProductAccessGroups } from './pages/ProductAccessGroups'
+import { Users } from './pages/Users'
+import { CompanyAdmin } from './pages/CompanyAdmin'
 import { BrandingProvider } from './contexts/BrandingContext'
 
 function App() {
@@ -141,6 +143,22 @@ function App() {
             <ProtectedRoute requiredPermission="manage_settings">
               <Layout>
                 <ProductAccessGroups />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/users" element={
+            <ProtectedRoute requiredPermission="manage_users">
+              <Layout>
+                <Users />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/company-admin" element={
+            <ProtectedRoute requiredPermission="manage_settings">
+              <Layout>
+                <CompanyAdmin />
               </Layout>
             </ProtectedRoute>
           } />

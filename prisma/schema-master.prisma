@@ -21,6 +21,7 @@ model Tenant {
   // Admin contact
   admin_email         String
   admin_name          String?
+  admin_email_verified Boolean  @default(false)
   
   // Billing/subscription info
   plan                String   @default("starter") // starter, professional, enterprise

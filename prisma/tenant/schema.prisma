@@ -149,3 +149,13 @@ model ModelInvocation {
   @@map("model_invocations")
 }
 
+model TenantBranding {
+  id           String   @id @default(uuid())
+  company_name String
+  logo_url     String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@map("tenant_branding")
+}
+

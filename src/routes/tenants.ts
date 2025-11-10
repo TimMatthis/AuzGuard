@@ -96,7 +96,8 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
         console.error('Failed to send verification email:', error);
       });
 
-      return {
+      // In development mode, include the verification URL in the response
+      const response: any = {
         success: true,
         message: 'Company created successfully! Please check your email to verify your account.',
         email_verification_required: true,
@@ -111,10 +112,34 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
         },
         token  // Token is provided but login will be blocked until verified
       };
+
+      // Include verification URL in development mode for easy testing
+      if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        response.verification_url = verificationUrl;
+        console.log('\n🔗 EMAIL VERIFICATION URL (Development Mode):');
+        console.log(verificationUrl);
+        console.log('');
+      }
+
+      return response;
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Company registration error:', error);
+      
       const msg = error instanceof Error ? error.message : 'Company registration failed';
+      
+      // Provide more helpful error messages
+      let userMessage = msg;
+      if (msg.includes('psql') || msg.includes('command not found') || msg.includes('not recognized')) {
+        userMessage = 'Database provisioning error. Please ensure PostgreSQL tools are installed and configured. Contact your system administrator.';
+      }
+      
       return reply.status(400).send({
-        error: { code: 'REGISTRATION_ERROR', message: msg }
+        error: { 
+          code: 'REGISTRATION_ERROR', 
+          message: userMessage,
+          details: process.env.NODE_ENV === 'development' ? msg : undefined
+        }
       });
     }
   });
@@ -186,6 +211,14 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
           verification_token_expires: null
         }
       });
+
+      // Update master tenant record to mark admin email as verified
+      if (user.role === 'admin') {
+        await provisioningService['masterPrisma'].tenant.update({
+          where: { id: tenant.id },
+          data: { admin_email_verified: true }
+        });
+      }
 
       // Send welcome email now that they're verified
       const emailService = new EmailService();
