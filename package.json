@@ -30,6 +30,7 @@
         "bcryptjs": "^2.4.3",
         "crypto": "^1.0.1",
         "dotenv": "^16.4.5",
+        "email-validator": "^2.0.4",
         "fastify": "^4.24.3",
         "openai": "^4.10.0",
         "undici": "^6.19.8",
