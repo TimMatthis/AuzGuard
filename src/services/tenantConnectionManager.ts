@@ -42,11 +42,13 @@ export class TenantConnectionManager {
     if (this.connections.size >= this.maxConnections) {
       // Remove oldest connection (simple FIFO)
       const firstKey = this.connections.keys().next().value;
-      const oldConnection = this.connections.get(firstKey);
-      if (oldConnection) {
-        await oldConnection.$disconnect();
+      if (firstKey) {
+        const oldConnection = this.connections.get(firstKey);
+        if (oldConnection) {
+          await oldConnection.$disconnect();
+        }
+        this.connections.delete(firstKey);
       }
-      this.connections.delete(firstKey);
     }
     
     this.connections.set(tenantSlug, connection);

@@ -34,7 +34,6 @@ export class AuditService {
     await this.prisma.auditLog.create({
       data: {
         id: entry.id,
-        org_id: entry.org_id ?? undefined,
         rule_id: entry.rule_id,
         effect: entry.effect,
         actor_id: entry.actor_id ?? undefined,
@@ -51,7 +50,6 @@ export class AuditService {
   async getAuditLogs(filters: {
     from?: Date;
     to?: Date;
-    org_id?: string;
     rule_id?: string;
     effect?: Effect;
     limit?: number;
@@ -72,7 +70,6 @@ export class AuditService {
     return {
       id: entry.id,
       timestamp: entry.timestamp.toISOString(),
-      org_id: entry.org_id ?? undefined,
       rule_id: entry.rule_id,
       effect: entry.effect as Effect,
       actor_id: entry.actor_id ?? undefined,

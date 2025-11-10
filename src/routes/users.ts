@@ -191,20 +191,34 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   });
 
   fastify.get('/user-groups/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const result = await userGroupService.getUserGroup(request.params.id);
-    if (!result) {
-      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'User group not found' } });
+    try {
+      const user = extractUser(request);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      const result = await tenantUserGroupService.getUserGroup(request.params.id);
+      if (!result) {
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'User group not found' } });
+      }
+      return result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to fetch user group';
+      return reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: msg } });
     }
-    return result;
   });
 
   fastify.post('/user-groups', async (request: FastifyRequest<{ Body: CreateUserGroupInput }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_routes')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      return await userGroupService.createUserGroup(request.body);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      return await tenantUserGroupService.createUserGroup(request.body);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to create user group';
       return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
@@ -212,12 +226,17 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   });
 
   fastify.put('/user-groups/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: UpdateUserGroupInput }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_routes')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      return await userGroupService.updateUserGroup(request.params.id, request.body);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      return await tenantUserGroupService.updateUserGroup(request.params.id, request.body);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to update user group';
       return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
@@ -225,12 +244,17 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   });
 
   fastify.delete('/user-groups/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_routes')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      await userGroupService.deleteUserGroup(request.params.id);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      await tenantUserGroupService.deleteUserGroup(request.params.id);
       return { success: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to delete user group';
@@ -238,26 +262,49 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
     }
   });
 
-  // Product Access Group routes
-  fastify.get('/product-access-groups', async () => {
-    return await userGroupService.listProductAccessGroups();
+  // Product Access Group routes (tenant-aware)
+  fastify.get('/product-access-groups', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = extractUser(request);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      return await tenantUserGroupService.listProductAccessGroups();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to fetch product access groups';
+      return reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: msg } });
+    }
   });
 
   fastify.get('/product-access-groups/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const result = await userGroupService.getProductAccessGroup(request.params.id);
-    if (!result) {
-      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Product access group not found' } });
+    try {
+      const user = extractUser(request);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      const result = await tenantUserGroupService.getProductAccessGroup(request.params.id);
+      if (!result) {
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Product access group not found' } });
+      }
+      return result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to fetch product access group';
+      return reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: msg } });
     }
-    return result;
   });
 
   fastify.post('/product-access-groups', async (request: FastifyRequest<{ Body: CreateProductAccessGroupInput }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_settings')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_settings')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      return await userGroupService.createProductAccessGroup(request.body);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      return await tenantUserGroupService.createProductAccessGroup(request.body);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to create product access group';
       return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
@@ -265,12 +312,17 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   });
 
   fastify.put('/product-access-groups/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: UpdateProductAccessGroupInput }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_settings')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_settings')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      return await userGroupService.updateProductAccessGroup(request.params.id, request.body);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      return await tenantUserGroupService.updateProductAccessGroup(request.params.id, request.body);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to update product access group';
       return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
@@ -278,12 +330,17 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   });
 
   fastify.delete('/product-access-groups/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_settings')) {
+    const user = extractUser(request);
+    
+    if (!authService.canPerformAction(user.role, 'manage_settings')) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
 
     try {
-      await userGroupService.deleteProductAccessGroup(request.params.id);
+      const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
+      const tenantUserGroupService = new UserGroupService(tenantPrisma);
+      
+      await tenantUserGroupService.deleteProductAccessGroup(request.params.id);
       return { success: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to delete product access group';

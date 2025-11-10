@@ -24,7 +24,6 @@ export interface UserWithGroup {
   id: string;
   email: string;
   role: string;
-  org_id: string | null;
   created_at: string;
   updated_at: string;
   last_login: string | null;
@@ -65,7 +64,6 @@ export class UserService {
         email: input.email,
         password_hash,
         role: input.role || 'viewer',
-        org_id: input.org_id,
         user_group_id: input.user_group_id,
         is_active: true
       }
@@ -116,10 +114,9 @@ export class UserService {
     };
   }
 
-  async listUsers(filters?: { org_id?: string; user_group_id?: string; is_active?: boolean }): Promise<User[]> {
+  async listUsers(filters?: { user_group_id?: string; is_active?: boolean }): Promise<User[]> {
     const users = await this.prisma.user.findMany({
       where: {
-        org_id: filters?.org_id,
         user_group_id: filters?.user_group_id,
         is_active: filters?.is_active
       },
@@ -133,7 +130,6 @@ export class UserService {
     const data: any = {
       email: input.email,
       role: input.role,
-      org_id: input.org_id,
       user_group_id: input.user_group_id,
       is_active: input.is_active
     };

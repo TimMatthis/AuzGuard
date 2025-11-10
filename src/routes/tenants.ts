@@ -175,13 +175,13 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
           id: user.id,
           email: user.email,
           role: user.role,
-          name: user.name
+          name: user.name || undefined
         },
         token
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Login failed';
-      fastify.log.error('Login error:', error);
+      fastify.log.error({ error }, 'Login error');
       return reply.status(500).send({
         error: { code: 'LOGIN_ERROR', message: msg }
       });

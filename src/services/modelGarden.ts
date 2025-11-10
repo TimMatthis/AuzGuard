@@ -541,7 +541,6 @@ export class ModelGardenService {
         total_tokens: estimatedTokens ?? undefined,
         estimated_cost_aud: estimatedCost ?? undefined,
         audit_log_id: context.auditLogId,
-        org_id: context.orgId,
         request_payload: context.requestPayload as Prisma.InputJsonValue,
         response_payload: result.rawResponse as Prisma.InputJsonValue,
         error_message: error instanceof Error ? error.message : undefined
