@@ -19,7 +19,7 @@ Write-Host ""
 
 # Create backup directory
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
-Write-Host "✓ Created backup directory: $backupDir" -ForegroundColor Green
+Write-Host "[OK] Created backup directory: $backupDir" -ForegroundColor Green
 Write-Host ""
 
 # Export master database
@@ -29,9 +29,9 @@ pg_dump -U $PostgresUser -h $PostgresHost -p $PostgresPort -d auzguard_master -f
 
 if ($LASTEXITCODE -eq 0) {
     $size = (Get-Item $masterFile).Length / 1KB
-    Write-Host "✓ Master database exported: $masterFile ($([math]::Round($size, 2)) KB)" -ForegroundColor Green
+    Write-Host "[OK] Master database exported: $masterFile ($([math]::Round($size, 2)) KB)" -ForegroundColor Green
 } else {
-    Write-Host "✗ Failed to export master database" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to export master database" -ForegroundColor Red
     exit 1
 }
 
@@ -43,9 +43,9 @@ $query = "SELECT slug FROM tenants WHERE status = 'active';"
 $tenants = psql -U $PostgresUser -h $PostgresHost -p $PostgresPort -d auzguard_master -t -c $query | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
 
 if ($tenants.Count -eq 0) {
-    Write-Host "✓ No tenant databases found" -ForegroundColor Yellow
+    Write-Host "[OK] No tenant databases found" -ForegroundColor Yellow
 } else {
-    Write-Host "✓ Found $($tenants.Count) tenant database(s)" -ForegroundColor Green
+    Write-Host "[OK] Found $($tenants.Count) tenant database(s)" -ForegroundColor Green
     Write-Host ""
     
     # Export each tenant database
@@ -58,9 +58,9 @@ if ($tenants.Count -eq 0) {
         
         if ($LASTEXITCODE -eq 0) {
             $size = (Get-Item $tenantFile).Length / 1KB
-            Write-Host "✓ Exported: $dbName ($([math]::Round($size, 2)) KB)" -ForegroundColor Green
+            Write-Host "[OK] Exported: $dbName ($([math]::Round($size, 2)) KB)" -ForegroundColor Green
         } else {
-            Write-Host "✗ Failed to export: $dbName" -ForegroundColor Red
+            Write-Host "[ERROR] Failed to export: $dbName" -ForegroundColor Red
         }
     }
 }
@@ -79,7 +79,7 @@ $metadata = @{
 }
 
 $metadata | ConvertTo-Json | Out-File "$backupDir\export_metadata.json"
-Write-Host "✓ Metadata saved" -ForegroundColor Green
+Write-Host "[OK] Metadata saved" -ForegroundColor Green
 
 # Summary
 Write-Host ""

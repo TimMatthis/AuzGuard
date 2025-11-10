@@ -18,14 +18,14 @@ Write-Host ""
 
 # Check if backup directory exists
 if (-not (Test-Path $BackupDir)) {
-    Write-Host "✗ Backup directory not found: $BackupDir" -ForegroundColor Red
+    Write-Host "[ERROR] Backup directory not found: $BackupDir" -ForegroundColor Red
     exit 1
 }
 
 # Check if metadata file exists
 $metadataFile = "$BackupDir\export_metadata.json"
 if (-not (Test-Path $metadataFile)) {
-    Write-Host "✗ Metadata file not found: $metadataFile" -ForegroundColor Red
+    Write-Host "[ERROR] Metadata file not found: $metadataFile" -ForegroundColor Red
     exit 1
 }
 
@@ -37,7 +37,7 @@ Write-Host ""
 
 # Warning if dropping existing databases
 if ($DropExisting) {
-    Write-Host "⚠️  WARNING: You are about to DROP existing databases!" -ForegroundColor Red
+    Write-Host "[WARNING] You are about to DROP existing databases!" -ForegroundColor Red
     Write-Host "This action cannot be undone!" -ForegroundColor Red
     $confirm = Read-Host "Type 'YES' to continue"
     if ($confirm -ne "YES") {
@@ -52,7 +52,7 @@ Write-Host "Importing Master Database..." -ForegroundColor Yellow
 $masterFile = "$BackupDir\auzguard_master.sql"
 
 if (-not (Test-Path $masterFile)) {
-    Write-Host "✗ Master database file not found: $masterFile" -ForegroundColor Red
+    Write-Host "[ERROR] Master database file not found: $masterFile" -ForegroundColor Red
     exit 1
 }
 
@@ -68,9 +68,9 @@ psql -U $PostgresUser -h $PostgresHost -p $PostgresPort -d postgres -c "CREATE D
 psql -U $PostgresUser -h $PostgresHost -p $PostgresPort -d auzguard_master -f $masterFile -q
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Master database imported successfully" -ForegroundColor Green
+    Write-Host "[OK] Master database imported successfully" -ForegroundColor Green
 } else {
-    Write-Host "✗ Failed to import master database" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to import master database" -ForegroundColor Red
     exit 1
 }
 
@@ -84,7 +84,7 @@ if ($metadata.databases.tenants.Count -gt 0) {
         $dbName = [System.IO.Path]::GetFileNameWithoutExtension($tenantFile)
         
         if (-not (Test-Path $fullPath)) {
-            Write-Host "  ✗ File not found: $tenantFile" -ForegroundColor Red
+            Write-Host "  [ERROR] File not found: $tenantFile" -ForegroundColor Red
             continue
         }
         
@@ -101,9 +101,9 @@ if ($metadata.databases.tenants.Count -gt 0) {
         psql -U $PostgresUser -h $PostgresHost -p $PostgresPort -d $dbName -f $fullPath -q
         
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ✓ Imported: $dbName" -ForegroundColor Green
+            Write-Host "  [OK] Imported: $dbName" -ForegroundColor Green
         } else {
-            Write-Host "  ✗ Failed to import: $dbName" -ForegroundColor Red
+            Write-Host "  [ERROR] Failed to import: $dbName" -ForegroundColor Red
         }
     }
 }
