@@ -48,14 +48,13 @@ export function Login() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   // Register/Company signup form state
-  const [companySlug, setCompanySlug] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyAdminEmail, setCompanyAdminEmail] = useState('');
-  const [companyAdminName, setCompanyAdminName] = useState('');
   const [companyAdminPassword, setCompanyAdminPassword] = useState('');
-  const [companyConfirmPassword, setCompanyConfirmPassword] = useState('');
   const [registerError, setRegisterError] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Demo form state
   const [selectedRole, setSelectedRole] = useState<UserRole>('viewer');
@@ -80,9 +79,9 @@ export function Login() {
     event.preventDefault();
     setRegisterError('');
 
-    // Validate passwords match
-    if (companyAdminPassword !== companyConfirmPassword) {
-      setRegisterError('Passwords do not match');
+    // Validate email
+    if (!companyAdminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyAdminEmail)) {
+      setRegisterError('Please enter a valid email address');
       return;
     }
 
@@ -92,11 +91,19 @@ export function Login() {
       return;
     }
 
-    // Validate slug format
-    if (!/^[a-z0-9-]+$/.test(companySlug)) {
-      setRegisterError('Company ID must contain only lowercase letters, numbers, and hyphens');
+    // Validate company name
+    if (!companyName || companyName.trim().length < 2) {
+      setRegisterError('Company name must be at least 2 characters');
       return;
     }
+
+    // Auto-generate slug from company name
+    const companySlug = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
 
     setRegisterLoading(true);
 
@@ -106,7 +113,7 @@ export function Login() {
         slug: companySlug,
         company_name: companyName,
         admin_email: companyAdminEmail,
-        admin_name: companyAdminName,
+        admin_name: '',
         admin_password: companyAdminPassword
       });
 
@@ -248,17 +255,36 @@ export function Login() {
                     <label htmlFor="loginPassword" className="text-sm font-medium text-gray-300">
                       Password
                     </label>
-                    <input
-                      id="loginPassword"
-                      name="password"
-                      type="password"
-                      required
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="form-input"
-                      autoComplete="current-password"
-                    />
+                    <div className="relative">
+                      <input
+                        id="loginPassword"
+                        name="password"
+                        type={showLoginPassword ? 'text' : 'password'}
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="form-input pr-10"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
+                        aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showLoginPassword ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <button
@@ -276,9 +302,9 @@ export function Login() {
             {activeTab === 'register' && (
               <>
                 <header className="space-y-2">
-                  <h2 className="text-2xl font-semibold">Create Your Company</h2>
+                  <h2 className="text-2xl font-semibold">Create Your Account</h2>
                   <p className="text-sm text-gray-400">
-                    Set up a new company with its own isolated database and admin account.
+                    Get started with just a few details. We'll set up everything for you.
                   </p>
                 </header>
 
@@ -290,24 +316,6 @@ export function Login() {
                   )}
 
                   <div className="space-y-2">
-                    <label htmlFor="companySlug" className="text-sm font-medium text-gray-300">
-                      Company ID <span className="text-slate-400 font-normal">(unique identifier)</span>
-                    </label>
-                    <input
-                      id="companySlug"
-                      name="slug"
-                      type="text"
-                      required
-                      value={companySlug}
-                      onChange={(e) => setCompanySlug(e.target.value.toLowerCase())}
-                      placeholder="acme-corp"
-                      className="form-input"
-                      pattern="[a-z0-9-]+"
-                    />
-                    <p className="text-xs text-gray-500">Lowercase letters, numbers, and hyphens only</p>
-                  </div>
-
-                  <div className="space-y-2">
                     <label htmlFor="companyName" className="text-sm font-medium text-gray-300">
                       Company Name
                     </label>
@@ -316,83 +324,68 @@ export function Login() {
                       name="companyName"
                       type="text"
                       required
+                      minLength={2}
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="Acme Corporation"
                       className="form-input"
                     />
+                    <p className="text-xs text-gray-500">Your organization or company name</p>
                   </div>
 
-                  <div className="border-t border-gray-700 pt-4">
-                    <h3 className="text-sm font-medium text-gray-300 mb-3">Admin Account</h3>
+                  <div className="space-y-2">
+                    <label htmlFor="companyAdminEmail" className="text-sm font-medium text-gray-300">
+                      Email Address
+                    </label>
+                    <input
+                      id="companyAdminEmail"
+                      name="adminEmail"
+                      type="email"
+                      required
+                      value={companyAdminEmail}
+                      onChange={(e) => setCompanyAdminEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="form-input"
+                      autoComplete="email"
+                    />
+                  </div>
 
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label htmlFor="companyAdminName" className="text-sm font-medium text-gray-300">
-                          Admin Name <span className="text-slate-400 font-normal">(optional)</span>
-                        </label>
-                        <input
-                          id="companyAdminName"
-                          name="adminName"
-                          type="text"
-                          value={companyAdminName}
-                          onChange={(e) => setCompanyAdminName(e.target.value)}
-                          placeholder="John Doe"
-                          className="form-input"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="companyAdminEmail" className="text-sm font-medium text-gray-300">
-                          Admin Email
-                        </label>
-                        <input
-                          id="companyAdminEmail"
-                          name="adminEmail"
-                          type="email"
-                          required
-                          value={companyAdminEmail}
-                          onChange={(e) => setCompanyAdminEmail(e.target.value)}
-                          placeholder="admin@acme.com"
-                          className="form-input"
-                          autoComplete="email"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="companyAdminPassword" className="text-sm font-medium text-gray-300">
-                          Admin Password
-                        </label>
-                        <input
-                          id="companyAdminPassword"
-                          name="adminPassword"
-                          type="password"
-                          required
-                          value={companyAdminPassword}
-                          onChange={(e) => setCompanyAdminPassword(e.target.value)}
-                          placeholder="At least 8 characters"
-                          className="form-input"
-                          autoComplete="new-password"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="companyConfirmPassword" className="text-sm font-medium text-gray-300">
-                          Confirm Password
-                        </label>
-                        <input
-                          id="companyConfirmPassword"
-                          name="confirmPassword"
-                          type="password"
-                          required
-                          value={companyConfirmPassword}
-                          onChange={(e) => setCompanyConfirmPassword(e.target.value)}
-                          placeholder="Confirm admin password"
-                          className="form-input"
-                          autoComplete="new-password"
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <label htmlFor="companyAdminPassword" className="text-sm font-medium text-gray-300">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="companyAdminPassword"
+                        name="adminPassword"
+                        type={showRegisterPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={companyAdminPassword}
+                        onChange={(e) => setCompanyAdminPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        className="form-input pr-10"
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
+                        aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showRegisterPassword ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
+                    <p className="text-xs text-gray-500">Must be at least 8 characters long</p>
                   </div>
 
                   <button
@@ -400,12 +393,12 @@ export function Login() {
                     disabled={registerLoading}
                     className="cta-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {registerLoading ? 'Creating company...' : 'Create Company & Admin Account'}
+                    {registerLoading ? 'Creating account...' : 'Create Account'}
                   </button>
                 </form>
 
                 <p className="text-xs text-gray-400 text-center">
-                  Creates an isolated database for your company with complete data separation.
+                  By signing up, you agree to our Terms of Service and Privacy Policy.
                 </p>
               </>
             )}

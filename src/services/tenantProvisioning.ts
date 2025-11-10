@@ -186,7 +186,7 @@ export class TenantProvisioningService {
 
   private async runTenantMigrations(tenantDbUrl: string): Promise<void> {
     // Set the DATABASE_URL env var temporarily and run migrations
-    const migrationCommand = `npx prisma migrate deploy --schema=./prisma/schema-tenant.prisma`;
+    const migrationCommand = `npx prisma migrate deploy --schema=./prisma/tenant/schema.prisma`;
     
     try {
       const { stdout, stderr } = await execAsync(migrationCommand, {
