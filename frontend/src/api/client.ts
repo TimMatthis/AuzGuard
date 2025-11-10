@@ -290,8 +290,18 @@ class ApiClient {
     admin_name?: string;
     admin_password: string;
     plan?: string;
-  }): Promise<{ success: boolean; tenant: { id: string; slug: string; company_name: string }; user: any; token: string }> {
+  }): Promise<{ success: boolean; email_verification_required?: boolean; message?: string; tenant: { id: string; slug: string; company_name: string }; user: any; token: string }> {
     return this.request('/company/register', { method: 'POST', body: JSON.stringify(data) });
+  }
+  
+  async verifyEmail(token: string, email: string): Promise<{
+    success: boolean;
+    message: string;
+    already_verified?: boolean;
+  }> {
+    return this.request(`/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`, {
+      method: 'GET'
+    });
   }
   
   async tenantLogin(email: string, password: string, tenant_slug?: string): Promise<{

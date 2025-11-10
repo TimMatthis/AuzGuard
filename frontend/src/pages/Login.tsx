@@ -71,8 +71,13 @@ export function Login() {
     try {
       await login(loginEmail, loginPassword);
       navigate('/dashboard');
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Login failed');
+    } catch (error: any) {
+      // Check for email verification error
+      if (error?.code === 'EMAIL_NOT_VERIFIED' || error?.message?.includes('verify your email')) {
+        setLoginError('⚠️ Please verify your email address before logging in. Check your inbox for the verification link.');
+      } else {
+        setLoginError(error instanceof Error ? error.message : 'Login failed');
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -116,14 +121,21 @@ export function Login() {
         slug: companySlug,
         company_name: companyName,
         admin_email: companyAdminEmail,
-        admin_name: '',
+        admin_name: companyAdminName,
         admin_password: companyAdminPassword
       });
 
-      // Store token and navigate
-      localStorage.setItem('auzguard_token', response.token);
-      apiClient.setToken(response.token);
-      navigate('/dashboard');
+      // Check if email verification is required
+      if (response.email_verification_required) {
+        setRegisterSuccess(response.message || 'Company created! Please check your email to verify your account.');
+        setRegisterStep('verification-sent');
+        // DON'T store token or navigate yet - user must verify email first
+      } else {
+        // Fallback for older flow (shouldn't happen with current backend)
+        localStorage.setItem('auzguard_token', response.token);
+        apiClient.setToken(response.token);
+        navigate('/dashboard');
+      }
     } catch (error) {
       setRegisterError(error instanceof Error ? error.message : 'Company registration failed');
     } finally {
@@ -304,19 +316,66 @@ export function Login() {
             {/* Register Form (Company Signup) */}
             {activeTab === 'register' && (
               <>
-                <header className="space-y-2">
-                  <h2 className="text-2xl font-semibold">Create Your Account</h2>
-                  <p className="text-sm text-gray-400">
-                    Get started with just a few details. We'll set up everything for you.
-                  </p>
-                </header>
-
-                <form className="space-y-5" onSubmit={handleRegister}>
-                  {registerError && (
-                    <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-                      {registerError}
+                {registerStep === 'verification-sent' ? (
+                  // Success message after registration
+                  <div className="space-y-6 text-center">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-green-500/10 border-2 border-green-500/30 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
+                      </svg>
                     </div>
-                  )}
+                    <header className="space-y-3">
+                      <h2 className="text-2xl font-semibold text-green-400">✅ Check Your Email!</h2>
+                      <p className="text-gray-300">
+                        {registerSuccess}
+                      </p>
+                    </header>
+                    <div className="px-4 py-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-left space-y-2">
+                      <p className="text-sm text-blue-300">
+                        <strong>📧 Email sent to:</strong> {companyAdminEmail}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Please click the verification link in your email to activate your account.
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        ⏰ The verification link will expire in 24 hours.
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-400">
+                        Didn't receive the email? Check your spam folder.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setRegisterStep('');
+                          setRegisterSuccess('');
+                          setCompanyName('');
+                          setCompanyAdminEmail('');
+                          setCompanyAdminName('');
+                          setCompanyAdminPassword('');
+                        }}
+                        className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        ← Try again with a different email
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Registration form
+                  <>
+                    <header className="space-y-2">
+                      <h2 className="text-2xl font-semibold">Create Your Account</h2>
+                      <p className="text-sm text-gray-400">
+                        Get started with just a few details. We'll set up everything for you.
+                      </p>
+                    </header>
+
+                    <form className="space-y-5" onSubmit={handleRegister}>
+                      {registerError && (
+                        <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+                          {registerError}
+                        </div>
+                      )}
 
                   <div className="space-y-2">
                     <label htmlFor="companyName" className="text-sm font-medium text-gray-300">
@@ -334,6 +393,23 @@ export function Login() {
                       className="form-input"
                     />
                     <p className="text-xs text-gray-500">Your organization or company name</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="companyAdminName" className="text-sm font-medium text-gray-300">
+                      Your Name <span className="text-gray-500">(optional)</span>
+                    </label>
+                    <input
+                      id="companyAdminName"
+                      name="adminName"
+                      type="text"
+                      value={companyAdminName}
+                      onChange={(e) => setCompanyAdminName(e.target.value)}
+                      placeholder="John Doe"
+                      className="form-input"
+                      autoComplete="name"
+                    />
+                    <p className="text-xs text-gray-500">We'll use this to personalize your experience</p>
                   </div>
 
                   <div className="space-y-2">
@@ -400,9 +476,11 @@ export function Login() {
                   </button>
                 </form>
 
-                <p className="text-xs text-gray-400 text-center">
-                  By signing up, you agree to our Terms of Service and Privacy Policy.
-                </p>
+                    <p className="text-xs text-gray-400 text-center">
+                      By signing up, you agree to our Terms of Service and Privacy Policy.
+                    </p>
+                  </>
+                )}
               </>
             )}
 

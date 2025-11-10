@@ -7,6 +7,7 @@ import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
+import { VerifyEmail } from './pages/VerifyEmail'
 import { Dashboard2 as Dashboard } from './pages/Dashboard2'
 import { Policies } from './pages/Policies'
 import { PolicyEditor } from './pages/PolicyEditor'
@@ -31,6 +32,7 @@ function App() {
           <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           <Route path="/dashboard" element={
             <ProtectedRoute>
