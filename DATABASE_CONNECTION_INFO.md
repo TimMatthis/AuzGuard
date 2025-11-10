@@ -128,3 +128,4 @@ WHERE admin_email = 'user@example.com';
 3. Never commit `.env` to git
 4. Use SSL/TLS for remote connections
 
+

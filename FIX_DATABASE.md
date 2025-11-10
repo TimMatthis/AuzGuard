@@ -77,3 +77,4 @@ If you're still getting errors, check:
 3. Your PostgreSQL user has CREATE TABLE permissions
 4. The backend server logs for specific error messages
 
+

@@ -76,3 +76,4 @@ ORDER BY created_at DESC;
 -- Reset verification token expiry (extend by 24 hours)
 -- UPDATE users SET verification_token_expires = NOW() + INTERVAL '24 hours' WHERE email = 'email@example.com';
 
+

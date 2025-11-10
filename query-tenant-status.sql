@@ -31,3 +31,4 @@ ORDER BY created_at DESC;
 -- FROM tenants
 -- GROUP BY admin_email_verified;
 
+
