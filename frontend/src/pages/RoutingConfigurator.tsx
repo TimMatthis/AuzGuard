@@ -174,7 +174,7 @@ export function RoutingConfigurator() {
 
           const setPriority = (p: 'speed' | 'cost' | 'performance') => {
             setBasic(prev => {
-              const next = { ...(prev || {}) } as RouteProfile['basic'];
+              const next: any = { ...(prev || {}) };
               const currently = priority;
               if (currently === p) {
                 // toggle off -> none selected

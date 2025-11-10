@@ -327,6 +327,7 @@ export interface User {
   email: string;
   role: UserRole;
   org_id?: string;
+  tenant_slug?: string; // Tenant identifier for multi-tenant architecture
   created_at: string;
   last_login?: string;
 }

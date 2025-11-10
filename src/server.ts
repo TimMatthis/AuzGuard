@@ -18,6 +18,8 @@ import { RouteService } from './services/routes';
 import { AuthService } from './services/auth';
 import { ModelGardenService } from './services/modelGarden';
 import { PreprocessorService } from './services/preprocessor';
+import { UserService } from './services/users';
+import { UserGroupService } from './services/userGroups';
 
 import { policyRoutes } from './routes/policy';
 import { CatalogService } from './services/catalog';
@@ -28,6 +30,7 @@ import { overrideRoutes } from './routes/overrides';
 import { routingConfigRoutes } from './routes/routingConfig';
 import { RoutingProfilesService } from './services/routingProfiles';
 import { brandingRoutes } from './routes/branding';
+import { userRoutes } from './routes/users';
 
 // Load JSON schemas
 const ruleSchema: any = require('../schemas/auzguard_rule_schema_v1.json');
@@ -67,7 +70,9 @@ const policySchema: any = {
 
 const policyValidator = ajv.compile(policySchema);
 
-const authService = new AuthService();
+const userService = new UserService(prisma);
+const userGroupService = new UserGroupService(prisma);
+const authService = new AuthService(userService);
 const policyService = new PolicyService(prisma, policyValidator);
 const catalogService = new CatalogService();
 const evaluationService = new EvaluationService();
@@ -75,7 +80,7 @@ const auditService = new AuditService(prisma, process.env.HASH_SALT || 'default-
 const routeService = new RouteService(prisma);
 const modelGardenService = new ModelGardenService(prisma);
 const preprocessorService = new PreprocessorService();
-const routingProfilesService = new RoutingProfilesService();
+const routingProfilesService = new RoutingProfilesService(prisma);
 
 // Create Fastify instance
 const fastify = Fastify({
@@ -182,6 +187,13 @@ async function registerPluginsAndRoutes() {
   });
 
   await fastify.register(brandingRoutes, { prefix: '/api' });
+
+  await fastify.register(userRoutes, {
+    prefix: '/api',
+    userService,
+    userGroupService,
+    authService
+  });
 
   // Serve frontend build and enable SPA fallback for non-API routes
   const staticRoot = path.join(__dirname, '..', 'frontend', 'dist');

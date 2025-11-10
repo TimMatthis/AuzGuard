@@ -1,0 +1,69 @@
+// Master tenant management schema
+// This database stores tenant registry and metadata
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-master"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("MASTER_DATABASE_URL")
+}
+
+model Tenant {
+  id                  String   @id @default(uuid())
+  slug                String   @unique // URL-safe identifier (e.g., "acme-corp")
+  company_name        String
+  database_name       String   @unique
+  database_url        String   // Connection string to tenant database
+  status              String   @default("active") // active, suspended, deleted
+  
+  // Admin contact
+  admin_email         String
+  admin_name          String?
+  
+  // Billing/subscription info
+  plan                String   @default("starter") // starter, professional, enterprise
+  max_users           Int      @default(5)
+  
+  // Metadata
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  last_active_at      DateTime?
+  
+  // Features/config
+  settings            Json?    // Tenant-specific settings
+  
+  @@map("tenants")
+  @@index([slug])
+  @@index([database_name])
+}
+
+model TenantInvitation {
+  id                String   @id @default(uuid())
+  tenant_id         String
+  email             String
+  role              String   @default("viewer")
+  token             String   @unique
+  expires_at        DateTime
+  used_at           DateTime?
+  created_at        DateTime @default(now())
+  
+  @@map("tenant_invitations")
+  @@index([token])
+  @@index([tenant_id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenant_id   String?
+  action      String
+  actor_email String?
+  metadata    Json?
+  created_at  DateTime @default(now())
+  
+  @@map("master_audit_logs")
+  @@index([tenant_id])
+  @@index([created_at])
+}
+

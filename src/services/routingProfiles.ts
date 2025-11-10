@@ -1,140 +1,94 @@
-import fs from 'fs';
-import path from 'path';
-import { RouteProfile, RoutingPreference, UserGroup, GroupRouteBinding } from '../types';
-
-interface StoreShape {
-  profiles: RouteProfile[];
-  groups: UserGroup[];
-  bindings: GroupRouteBinding[];
-}
+// Routing profiles service with database operations
+import { PrismaClient, Prisma } from '@prisma/client';
+import { RouteProfile, RoutingPreference } from '../types';
 
 export class RoutingProfilesService {
-  private storePath: string;
+  constructor(private prisma: PrismaClient) {}
 
-  constructor(dataDir?: string) {
-    const root = dataDir || path.join(__dirname, '..', '..');
-    const dir = path.join(root, 'data');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    this.storePath = path.join(dir, 'routing_profiles.json');
-    if (!fs.existsSync(this.storePath)) {
-      this.write({ profiles: [], groups: [], bindings: [] });
+  async listProfiles(): Promise<RouteProfile[]> {
+    const profiles = await this.prisma.routeProfile.findMany({
+      orderBy: { name: 'asc' }
+    });
+
+    return profiles.map(p => this.toRouteProfileType(p));
+  }
+
+  async getProfile(id: string): Promise<RouteProfile | null> {
+    const profile = await this.prisma.routeProfile.findUnique({
+      where: { id }
+    });
+
+    return profile ? this.toRouteProfileType(profile) : null;
+  }
+
+  async createProfile(input: { 
+    name: string; 
+    basic?: RouteProfile['basic']; 
+    preferences?: RoutingPreference; 
+    pool_id?: string 
+  }): Promise<RouteProfile> {
+    const existing = await this.prisma.routeProfile.findUnique({
+      where: { name: input.name }
+    });
+
+    if (existing) {
+      throw new Error('Route profile with this name already exists');
     }
-  }
 
-  private read(): StoreShape {
-    try {
-      const raw = fs.readFileSync(this.storePath, 'utf8');
-      const parsed = JSON.parse(raw) as Partial<StoreShape> | null;
-      return {
-        profiles: Array.isArray(parsed?.profiles) ? parsed!.profiles as RouteProfile[] : [],
-        groups: Array.isArray(parsed?.groups) ? parsed!.groups as UserGroup[] : [],
-        bindings: Array.isArray(parsed?.bindings) ? parsed!.bindings as GroupRouteBinding[] : [],
-      };
-    } catch {
-      return { profiles: [], groups: [], bindings: [] };
-    }
-  }
-
-  private write(data: StoreShape) {
-    fs.writeFileSync(this.storePath, JSON.stringify(data, null, 2), 'utf8');
-  }
-
-  listProfiles(): RouteProfile[] { return this.read().profiles; }
-  listGroups(): Array<UserGroup & { route_profile_id?: string }> {
-    const data = this.read();
-    const byGroup = new Map<string, string>();
-    for (const b of data.bindings) byGroup.set(b.group_id, b.route_profile_id);
-    return data.groups.map(g => ({ ...g, route_profile_id: byGroup.get(g.id) }));
-  }
-
-  createProfile(input: { name: string; basic?: RouteProfile['basic']; preferences?: RoutingPreference; pool_id?: string }): RouteProfile {
-    const data = this.read();
-    const now = new Date().toISOString();
-    const profile: RouteProfile = {
-      id: `rp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-      name: input.name,
-      basic: input.basic || {},
-      preferences: input.preferences || {},
-      pool_id: input.pool_id,
-      created_at: now,
-      updated_at: now
-    };
-    data.profiles.push(profile);
-    this.write(data);
-    return profile;
-  }
-
-  updateProfile(id: string, patch: Partial<Omit<RouteProfile, 'id' | 'created_at'>>): RouteProfile {
-    const data = this.read();
-    const idx = data.profiles.findIndex(p => p.id === id);
-    if (idx < 0) throw new Error('Profile not found');
-    const next: RouteProfile = {
-      ...data.profiles[idx],
-      ...patch,
-      updated_at: new Date().toISOString(),
-      preferences: { ...data.profiles[idx].preferences, ...(patch.preferences || {}) }
-    };
-    data.profiles[idx] = next;
-    this.write(data);
-    return next;
-  }
-
-  deleteProfile(id: string): void {
-    const data = this.read();
-    data.profiles = data.profiles.filter(p => p.id !== id);
-    data.bindings = data.bindings.filter(b => b.route_profile_id !== id);
-    this.write(data);
-  }
-
-  createGroup(name: string): UserGroup {
-    const data = this.read();
-    const now = new Date().toISOString();
-    const group: UserGroup = { id: `ug_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, name, created_at: now, updated_at: now };
-    data.groups.push(group);
-    this.write(data);
-    return group;
-  }
-
-  deleteGroup(id: string): void {
-    const data = this.read();
-    data.groups = data.groups.filter(g => g.id !== id);
-    data.bindings = data.bindings.filter(b => b.group_id !== id);
-    this.write(data);
-  }
-
-  updateGroup(id: string, patch: Partial<UserGroup> & { route_profile_id?: string }): UserGroup {
-    const data = this.read();
-    const idx = data.groups.findIndex(g => g.id === id);
-    if (idx < 0) throw new Error('Group not found');
-
-    const { route_profile_id, ...rest } = patch as any;
-    const next: UserGroup = { ...data.groups[idx], ...(rest as any), updated_at: new Date().toISOString() };
-    data.groups[idx] = next;
-
-    if (typeof route_profile_id !== 'undefined') {
-      // replace existing binding for this group
-      data.bindings = data.bindings.filter(b => b.group_id !== id);
-      if (route_profile_id) {
-        const binding: GroupRouteBinding = { id: `gb_${Date.now().toString(36)}`, group_id: id, route_profile_id, created_at: new Date().toISOString() };
-        data.bindings.push(binding);
+    const profile = await this.prisma.routeProfile.create({
+      data: {
+        name: input.name,
+        basic: (input.basic || {}) as Prisma.InputJsonValue,
+        preferences: (input.preferences || {}) as Prisma.InputJsonValue,
+        pool_id: input.pool_id
       }
-    }
+    });
 
-    this.write(data);
-    return next;
+    return this.toRouteProfileType(profile);
   }
 
-  assignProfileToGroup(groupId: string, profileId: string): GroupRouteBinding {
-    const data = this.read();
-    const group = data.groups.find(g => g.id === groupId);
-    const profile = data.profiles.find(p => p.id === profileId);
-    if (!group) throw new Error('Group not found');
-    if (!profile) throw new Error('Route profile not found');
-    // replace existing
-    data.bindings = data.bindings.filter(b => b.group_id !== groupId);
-    const binding: GroupRouteBinding = { id: `gb_${Date.now().toString(36)}`, group_id: groupId, route_profile_id: profileId, created_at: new Date().toISOString() };
-    data.bindings.push(binding);
-    this.write(data);
-    return binding;
+  async updateProfile(id: string, patch: Partial<Omit<RouteProfile, 'id' | 'created_at'>>): Promise<RouteProfile> {
+    const existing = await this.prisma.routeProfile.findUnique({
+      where: { id }
+    });
+
+    if (!existing) {
+      throw new Error('Profile not found');
+    }
+
+    // Merge preferences if provided
+    const updatedPreferences = patch.preferences 
+      ? { ...(existing.preferences as any), ...patch.preferences }
+      : undefined;
+
+    const profile = await this.prisma.routeProfile.update({
+      where: { id },
+      data: {
+        name: patch.name,
+        basic: patch.basic !== undefined ? (patch.basic as Prisma.InputJsonValue) : undefined,
+        preferences: updatedPreferences as Prisma.InputJsonValue,
+        pool_id: patch.pool_id !== undefined ? patch.pool_id : undefined
+      }
+    });
+
+    return this.toRouteProfileType(profile);
+  }
+
+  async deleteProfile(id: string): Promise<void> {
+    await this.prisma.routeProfile.delete({
+      where: { id }
+    });
+  }
+
+  private toRouteProfileType(profile: any): RouteProfile {
+    return {
+      id: profile.id,
+      name: profile.name,
+      pool_id: profile.pool_id,
+      basic: profile.basic as any,
+      preferences: profile.preferences as RoutingPreference,
+      created_at: profile.created_at.toISOString(),
+      updated_at: profile.updated_at.toISOString()
+    };
   }
 }

@@ -3,12 +3,14 @@
 import { createHmac } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { UserRole, User } from '../types';
+import { UserService } from './users';
 
 interface TokenPayload {
   sub: string;
   email: string;
   role: UserRole;
   org_id?: string;
+  tenant_slug?: string;
   iat: number;
   exp: number;
   iss: string;
@@ -19,11 +21,27 @@ export class AuthService {
   private jwtSecret: string;
   private jwtIssuer: string;
   private jwtAudience: string;
+  private userService?: UserService;
 
-  constructor() {
+  constructor(userService?: UserService) {
     this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
     this.jwtIssuer = process.env.JWT_ISSUER || 'auzguard';
     this.jwtAudience = process.env.JWT_AUDIENCE || 'auzguard-api';
+    this.userService = userService;
+  }
+
+  async login(email: string, password: string): Promise<{ user: User; token: string } | null> {
+    if (!this.userService) {
+      throw new Error('UserService not configured for database authentication');
+    }
+
+    const user = await this.userService.verifyPassword(email, password);
+    if (!user) {
+      return null;
+    }
+
+    const token = this.generateToken(user);
+    return { user, token };
   }
 
   generateToken(user: User): string {
@@ -32,6 +50,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       org_id: user.org_id,
+      tenant_slug: user.tenant_slug,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
       iss: this.jwtIssuer,
@@ -63,6 +82,7 @@ export class AuthService {
       email: decoded.email,
       role: decoded.role,
       org_id: decoded.org_id,
+      tenant_slug: decoded.tenant_slug,
       created_at: new Date(decoded.iat * 1000).toISOString(),
       last_login: new Date().toISOString()
     };

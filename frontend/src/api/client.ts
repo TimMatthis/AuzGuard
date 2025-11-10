@@ -274,20 +274,69 @@ class ApiClient {
   async deleteRouteProfile(id: string): Promise<void> {
     return this.request(`/routes/config/profiles/${id}`, { method: 'DELETE' });
   }
-  async getUserGroups(): Promise<Array<import('../types').UserGroup & { route_profile_id?: string }>> {
-    return this.request('/routes/config/groups');
+  // User management
+  async login(email: string, password: string): Promise<{ user: import('../types').User; token: string }> {
+    return this.request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   }
-  async createUserGroup(name: string): Promise<import('../types').UserGroup> {
-    return this.request('/routes/config/groups', { method: 'POST', body: JSON.stringify({ name }) });
+  async register(email: string, password: string, org_id?: string, role?: string): Promise<{ user: import('../types').User; token: string }> {
+    return this.request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, org_id, role }) });
+  }
+  async getUsers(filters?: { org_id?: string; user_group_id?: string; is_active?: boolean }): Promise<import('../types').User[]> {
+    const qs = new URLSearchParams();
+    if (filters?.org_id) qs.append('org_id', filters.org_id);
+    if (filters?.user_group_id) qs.append('user_group_id', filters.user_group_id);
+    if (filters?.is_active !== undefined) qs.append('is_active', String(filters.is_active));
+    const endpoint = qs.toString() ? `/users?${qs}` : '/users';
+    return this.request(endpoint);
+  }
+  async getUser(id: string): Promise<any> {
+    return this.request(`/users/${id}`);
+  }
+  async createUser(user: { email: string; password: string; role?: string; org_id?: string; user_group_id?: string }): Promise<import('../types').User> {
+    return this.request('/users', { method: 'POST', body: JSON.stringify(user) });
+  }
+  async updateUser(id: string, patch: { email?: string; password?: string; role?: string; org_id?: string; user_group_id?: string; is_active?: boolean }): Promise<import('../types').User> {
+    return this.request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+  }
+  async deleteUser(id: string): Promise<void> {
+    return this.request(`/users/${id}`, { method: 'DELETE' });
+  }
+  async assignUserToGroup(userId: string, groupId: string | null): Promise<import('../types').User> {
+    return this.request(`/users/${userId}/assign-group`, { method: 'POST', body: JSON.stringify({ group_id: groupId }) });
+  }
+
+  // User groups
+  async getUserGroups(): Promise<Array<import('../types').UserGroup & { route_profile_id?: string }>> {
+    return this.request('/user-groups');
+  }
+  async getUserGroup(id: string): Promise<any> {
+    return this.request(`/user-groups/${id}`);
+  }
+  async createUserGroup(input: { name: string; default_pool_id?: string; allowed_pools?: string[]; default_policy_id?: string; allowed_policies?: string[]; route_profile_id?: string; product_access_group_id?: string }): Promise<import('../types').UserGroup> {
+    return this.request('/user-groups', { method: 'POST', body: JSON.stringify(input) });
+  }
+  async updateUserGroup(id: string, patch: Partial<import('../types').UserGroup> & { route_profile_id?: string; product_access_group_id?: string }): Promise<import('../types').UserGroup> {
+    return this.request(`/user-groups/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
   }
   async deleteUserGroup(id: string): Promise<void> {
-    return this.request(`/routes/config/groups/${id}`, { method: 'DELETE' });
+    return this.request(`/user-groups/${id}`, { method: 'DELETE' });
   }
-  async updateUserGroup(id: string, patch: Partial<import('../types').UserGroup> & { route_profile_id?: string }): Promise<import('../types').UserGroup> {
-    return this.request(`/routes/config/groups/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+
+  // Product access groups
+  async getProductAccessGroups(): Promise<Array<{ id: string; name: string; description: string | null; products: string[]; created_at: string; updated_at: string; _count?: { userGroups: number } }>> {
+    return this.request('/product-access-groups');
   }
-  async assignProfileToGroup(groupId: string, route_profile_id: string): Promise<any> {
-    return this.request(`/routes/config/groups/${groupId}/assign`, { method: 'POST', body: JSON.stringify({ route_profile_id }) });
+  async getProductAccessGroup(id: string): Promise<any> {
+    return this.request(`/product-access-groups/${id}`);
+  }
+  async createProductAccessGroup(input: { name: string; description?: string; products: string[] }): Promise<any> {
+    return this.request('/product-access-groups', { method: 'POST', body: JSON.stringify(input) });
+  }
+  async updateProductAccessGroup(id: string, patch: { name?: string; description?: string | null; products?: string[] }): Promise<any> {
+    return this.request(`/product-access-groups/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+  }
+  async deleteProductAccessGroup(id: string): Promise<void> {
+    return this.request(`/product-access-groups/${id}`, { method: 'DELETE' });
   }
 
   async getRoutingPaths(params: { from?: string; to?: string } = {}): Promise<{ nodes: any[]; edges: { source: string; target: string; count: number }[]; node_counts: Record<string, number> }> {

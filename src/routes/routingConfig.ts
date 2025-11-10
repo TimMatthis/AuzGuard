@@ -61,57 +61,6 @@ export async function routingConfigRoutes(fastify: FastifyInstance, options: Rou
     }
   });
 
-  // Groups
-  fastify.get('/groups', async () => profilesService.listGroups());
-  fastify.post('/groups', async (request: FastifyRequest<{ Body: { name: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
-      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
-    }
-    try {
-      return profilesService.createGroup(request.body.name);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create group';
-      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
-    }
-  });
-  fastify.delete('/groups/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
-      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
-    }
-    try {
-      profilesService.deleteGroup(request.params.id);
-      return { success: true };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to delete group';
-      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
-    }
-  });
-
-  // Binding
-  fastify.post('/groups/:id/assign', async (request: FastifyRequest<{ Params: { id: string }; Body: { route_profile_id: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
-      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
-    }
-    try {
-      const b = profilesService.assignProfileToGroup(request.params.id, request.body.route_profile_id);
-      return b;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to assign profile to group';
-      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
-    }
-  });
-
-  // Update group properties (default pool, allowed pools/policies, route_profile_id)
-  fastify.put('/groups/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<import('../types').UserGroup> & { route_profile_id?: string } }>, reply: FastifyReply) => {
-    if (!authService.canPerformAction(extractUser(request).role, 'manage_routes')) {
-      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
-    }
-    try {
-      const g = profilesService.updateGroup(request.params.id, request.body);
-      return g;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to update group';
-      return reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: msg } });
-    }
-  });
+  // Note: User group management has been moved to /api/user-groups routes
+  // This file now only handles routing profile management
 }

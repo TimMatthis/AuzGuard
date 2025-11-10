@@ -2,21 +2,17 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { PageLayout, Panel } from '../components/PageLayout';
-import { productAccess } from '../utils/productAccess';
 
 export function UserGroups() {
   const queryClient = useQueryClient();
   const { data: groups } = useQuery({ queryKey: ['userGroups'], queryFn: () => apiClient.getUserGroups() });
-  const [pagList, setPagList] = React.useState(() => productAccess.list());
-  React.useEffect(() => {
-    setPagList(productAccess.list());
-  }, []);
+  const { data: pagList } = useQuery({ queryKey: ['productAccessGroups'], queryFn: () => apiClient.getProductAccessGroups() });
   const { data: profiles } = useQuery({ queryKey: ['routeProfiles'], queryFn: () => apiClient.getRouteProfiles() });
   const { data: pools } = useQuery({ queryKey: ['modelPools'], queryFn: () => apiClient.getModelPools() });
   const { data: policies } = useQuery({ queryKey: ['policies'], queryFn: () => apiClient.getPolicies() });
 
   const createGroup = useMutation({
-    mutationFn: (name: string) => apiClient.createUserGroup(name),
+    mutationFn: (name: string) => apiClient.createUserGroup({ name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['userGroups'] })
   });
   const updateGroup = useMutation({
@@ -51,12 +47,12 @@ export function UserGroups() {
                 <div>
                   <label className="block text-gray-300 mb-1">Product Access Group</label>
                   <select
-                    value={productAccess.getAssignment(g.id) || ''}
-                    onChange={(e) => { productAccess.setAssignment(g.id, e.target.value || undefined); setPagList(productAccess.list()); }}
+                    value={g.product_access_group_id || ''}
+                    onChange={(e) => { updateGroup.mutate({ id: g.id, patch: { product_access_group_id: e.target.value || null } }); }}
                     className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white"
                   >
                     <option value="">-- Not assigned --</option>
-                    {pagList.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                    {pagList?.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
                   </select>
                 </div>
                 <div>

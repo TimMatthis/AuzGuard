@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserRole } from '../types';
+import { apiClient } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (role: UserRole, orgId?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, orgId?: string) => Promise<void>;
+  loginMock: (role: UserRole, orgId?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   hasPermission: (action: string) => boolean;
@@ -45,18 +48,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(false);
   }, []);
 
-  const login = async (role: UserRole, orgId?: string) => {
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await apiClient.login(email, password);
+      
+      localStorage.setItem('auzguard_token', response.token);
+      apiClient.setToken(response.token);
+      setToken(response.token);
+      setUser(response.user);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Login failed');
+    }
+  };
+
+  const register = async (email: string, password: string, orgId?: string) => {
+    try {
+      const response = await apiClient.register(email, password, orgId);
+      
+      localStorage.setItem('auzguard_token', response.token);
+      apiClient.setToken(response.token);
+      setToken(response.token);
+      setUser(response.user);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Registration failed');
+    }
+  };
+
+  const loginMock = async (role: UserRole, orgId?: string) => {
     // For demo purposes, generate a mock token
     const mockToken = generateMockToken(role, orgId);
     const mockUser = createMockUser(role, orgId);
     
     localStorage.setItem('auzguard_token', mockToken);
+    apiClient.setToken(mockToken);
     setToken(mockToken);
     setUser(mockUser);
   };
 
   const logout = () => {
     localStorage.removeItem('auzguard_token');
+    apiClient.setToken(null);
     setToken(null);
     setUser(null);
   };
@@ -79,6 +110,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     token,
     login,
+    register,
+    loginMock,
     logout,
     isLoading,
     hasPermission
