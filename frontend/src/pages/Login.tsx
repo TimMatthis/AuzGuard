@@ -50,9 +50,12 @@ export function Login() {
   // Register/Company signup form state
   const [companyName, setCompanyName] = useState('');
   const [companyAdminEmail, setCompanyAdminEmail] = useState('');
+  const [companyAdminName, setCompanyAdminName] = useState('');
   const [companyAdminPassword, setCompanyAdminPassword] = useState('');
   const [registerError, setRegisterError] = useState('');
+  const [registerSuccess, setRegisterSuccess] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerStep, setRegisterStep] = useState('');
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 

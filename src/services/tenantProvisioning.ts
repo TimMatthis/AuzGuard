@@ -221,7 +221,16 @@ export class TenantProvisioningService {
 
     try {
       const bcrypt = require('bcryptjs');
+      const crypto = require('crypto');
+      
       const passwordHash = await bcrypt.hash(password, 12);
+      
+      // Generate verification token (secure random string)
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      
+      // Token expires in 24 hours
+      const verification_token_expires = new Date();
+      verification_token_expires.setHours(verification_token_expires.getHours() + 24);
 
       const user = await tenantPrisma.user.create({
         data: {
@@ -229,7 +238,10 @@ export class TenantProvisioningService {
           password_hash: passwordHash,
           name,
           role: 'admin',
-          is_active: true
+          is_active: true,
+          email_verified: false,
+          verification_token: verificationToken,
+          verification_token_expires
         }
       });
 
@@ -239,7 +251,9 @@ export class TenantProvisioningService {
         id: user.id,
         email: user.email,
         role: user.role,
-        created_at: user.created_at.toISOString()
+        created_at: user.created_at.toISOString(),
+        email_verified: user.email_verified,
+        verification_token: user.verification_token
       };
     } catch (error) {
       await tenantPrisma.$disconnect();

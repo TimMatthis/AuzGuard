@@ -80,34 +80,134 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       
       const token = authService.generateToken(user);
 
-      // Send welcome email to admin (non-blocking)
+      // Send verification email to admin (non-blocking)
       const emailService = new EmailService();
-      const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      emailService.sendCompanyWelcomeEmail({
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const verificationUrl = `${frontendUrl}/verify-email?token=${result.initialUser.verification_token}&email=${encodeURIComponent(admin_email)}`;
+      
+      emailService.sendEmailVerification({
         companyName: result.tenant.company_name,
         adminName: admin_name || admin_email.split('@')[0],
         adminEmail: admin_email,
-        companySlug: result.tenant.slug,
-        loginUrl: `${loginUrl}/login`
+        verificationUrl,
+        expiresIn: '24 hours'
       }).catch(error => {
         // Log email error but don't fail the request
-        console.error('Failed to send welcome email:', error);
+        console.error('Failed to send verification email:', error);
       });
 
       return {
         success: true,
+        message: 'Company created successfully! Please check your email to verify your account.',
+        email_verification_required: true,
         tenant: {
           id: result.tenant.id,
           slug: result.tenant.slug,
           company_name: result.tenant.company_name
         },
-        user,
-        token
+        user: {
+          ...user,
+          email_verified: false
+        },
+        token  // Token is provided but login will be blocked until verified
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Company registration failed';
       return reply.status(400).send({
         error: { code: 'REGISTRATION_ERROR', message: msg }
+      });
+    }
+  });
+
+  // Public route: Verify email
+  fastify.get('/verify-email', async (
+    request: FastifyRequest<{ Querystring: { token: string; email: string } }>,
+    reply: FastifyReply
+  ) => {
+    try {
+      const { token, email } = request.query;
+
+      if (!token || !email) {
+        return reply.status(400).send({
+          error: { code: 'VALIDATION_ERROR', message: 'Token and email are required' }
+        });
+      }
+
+      // First, find which tenant this user belongs to
+      const tenant = await provisioningService['masterPrisma'].tenant.findFirst({
+        where: { admin_email: email }
+      });
+
+      if (!tenant) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      // Connect to tenant database
+      const tenantPrisma = await connectionManager.getTenantConnection(tenant.slug);
+      
+      // Find user by email and verification token
+      const user = await tenantPrisma.user.findFirst({
+        where: {
+          email,
+          verification_token: token
+        }
+      });
+
+      if (!user) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_TOKEN', message: 'Invalid or expired verification token' }
+        });
+      }
+
+      // Check if token is expired
+      if (user.verification_token_expires && new Date() > user.verification_token_expires) {
+        return reply.status(400).send({
+          error: { code: 'TOKEN_EXPIRED', message: 'Verification token has expired. Please request a new one.' }
+        });
+      }
+
+      // Check if already verified
+      if (user.email_verified) {
+        return reply.status(200).send({
+          success: true,
+          message: 'Email already verified. You can now log in.',
+          already_verified: true
+        });
+      }
+
+      // Verify the email
+      await tenantPrisma.user.update({
+        where: { id: user.id },
+        data: {
+          email_verified: true,
+          verification_token: null,
+          verification_token_expires: null
+        }
+      });
+
+      // Send welcome email now that they're verified
+      const emailService = new EmailService();
+      const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      emailService.sendCompanyWelcomeEmail({
+        companyName: tenant.company_name,
+        adminName: user.name || email.split('@')[0],
+        adminEmail: email,
+        companySlug: tenant.slug,
+        loginUrl: `${loginUrl}/login`
+      }).catch(error => {
+        console.error('Failed to send welcome email:', error);
+      });
+
+      return {
+        success: true,
+        message: 'Email verified successfully! You can now log in to your account.'
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Email verification failed';
+      return reply.status(500).send({
+        error: { code: 'VERIFICATION_ERROR', message: msg }
       });
     }
   });
@@ -160,6 +260,17 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       if (!isValid) {
         return reply.status(401).send({
           error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }
+        });
+      }
+
+      // Check if email is verified
+      if (!user.email_verified) {
+        return reply.status(403).send({
+          error: { 
+            code: 'EMAIL_NOT_VERIFIED', 
+            message: 'Please verify your email address before logging in. Check your inbox for the verification link.',
+            email_verified: false
+          }
         });
       }
 

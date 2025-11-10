@@ -9,6 +9,14 @@ export interface WelcomeEmailData {
   loginUrl: string;
 }
 
+export interface VerificationEmailData {
+  companyName: string;
+  adminName: string;
+  adminEmail: string;
+  verificationUrl: string;
+  expiresIn: string; // e.g., "24 hours"
+}
+
 export class EmailService {
   private emailProvider: string;
   private fromEmail: string;
@@ -21,7 +29,23 @@ export class EmailService {
   }
 
   /**
-   * Send welcome email to new company admin
+   * Send email verification to new company admin
+   */
+  async sendEmailVerification(data: VerificationEmailData): Promise<void> {
+    const subject = `Verify your email - ${data.companyName}`;
+    const htmlContent = this.generateVerificationEmailHTML(data);
+    const textContent = this.generateVerificationEmailText(data);
+
+    await this.sendEmail({
+      to: data.adminEmail,
+      subject,
+      html: htmlContent,
+      text: textContent
+    });
+  }
+
+  /**
+   * Send welcome email to new company admin (after verification)
    */
   async sendCompanyWelcomeEmail(data: WelcomeEmailData): Promise<void> {
     const subject = `Welcome to AuzGuard - ${data.companyName}`;
@@ -34,6 +58,131 @@ export class EmailService {
       html: htmlContent,
       text: textContent
     });
+  }
+
+  /**
+   * Generate HTML email template for email verification
+   */
+  private generateVerificationEmailHTML(data: VerificationEmailData): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">
+                ✉️ Verify Your Email
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="margin: 0 0 20px 0; color: #333; font-size: 22px;">
+                Hi ${data.adminName || 'there'}! 👋
+              </h2>
+              
+              <p style="margin: 0 0 16px 0; color: #555; font-size: 16px; line-height: 1.6;">
+                Thank you for creating <strong>${data.companyName}</strong> on AuzGuard!
+              </p>
+
+              <p style="margin: 0 0 16px 0; color: #555; font-size: 16px; line-height: 1.6;">
+                To complete your registration and secure your account, please verify your email address by clicking the button below:
+              </p>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${data.verificationUrl}" style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                      Verify Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 20px 0 0 0; color: #555; font-size: 14px; line-height: 1.6;">
+                Or copy and paste this link into your browser:
+              </p>
+              <p style="margin: 8px 0 0 0; word-break: break-all;">
+                <a href="${data.verificationUrl}" style="color: #667eea; text-decoration: none; font-size: 13px;">${data.verificationUrl}</a>
+              </p>
+
+              <!-- Warning Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; background-color: #fff3cd; border-radius: 6px; border: 1px solid #ffc107;">
+                <tr>
+                  <td style="padding: 16px;">
+                    <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.6;">
+                      ⏰ <strong>Important:</strong> This link will expire in ${data.expiresIn}. After that, you'll need to request a new verification email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 20px 0 0 0; color: #999; font-size: 13px; line-height: 1.6;">
+                If you didn't create an account with ${data.companyName}, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; text-align: center; border-top: 1px solid #e9ecef;">
+              <p style="margin: 0 0 8px 0; color: #999; font-size: 12px;">
+                © ${new Date().getFullYear()} AuzGuard. All rights reserved.
+              </p>
+              <p style="margin: 0; color: #999; font-size: 12px;">
+                Secure AI Governance & Routing Platform
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `.trim();
+  }
+
+  /**
+   * Generate plain text version of verification email
+   */
+  private generateVerificationEmailText(data: VerificationEmailData): string {
+    return `
+Verify Your Email
+
+Hi ${data.adminName || 'there'},
+
+Thank you for creating "${data.companyName}" on AuzGuard!
+
+To complete your registration and secure your account, please verify your email address by clicking the link below:
+
+${data.verificationUrl}
+
+IMPORTANT: This link will expire in ${data.expiresIn}.
+
+If you didn't create an account with ${data.companyName}, you can safely ignore this email.
+
+Best regards,
+The AuzGuard Team
+
+---
+© ${new Date().getFullYear()} AuzGuard. All rights reserved.
+Secure AI Governance & Routing Platform
+    `.trim();
   }
 
   /**
