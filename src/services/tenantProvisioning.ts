@@ -185,8 +185,8 @@ export class TenantProvisioningService {
   }
 
   private async runTenantMigrations(tenantDbUrl: string): Promise<void> {
-    // Set the DATABASE_URL env var temporarily and run migrations
-    const migrationCommand = `npx prisma migrate deploy --schema=./prisma/tenant/schema.prisma`;
+    // Use db push for fresh tenant databases - it's simpler and doesn't require migration history
+    const migrationCommand = `npx prisma db push --schema=./prisma/tenant/schema.prisma --skip-generate --accept-data-loss`;
     
     try {
       const { stdout, stderr } = await execAsync(migrationCommand, {
@@ -195,10 +195,12 @@ export class TenantProvisioningService {
           DATABASE_URL: tenantDbUrl
         }
       });
-      console.log('Migration output:', stdout);
-      if (stderr) console.error('Migration stderr:', stderr);
+      console.log('Schema push output:', stdout);
+      if (stderr && !stderr.includes('warnings')) {
+        console.error('Schema push stderr:', stderr);
+      }
     } catch (error: any) {
-      throw new Error(`Failed to run migrations: ${error.message}`);
+      throw new Error(`Failed to push schema: ${error.message}`);
     }
   }
 
