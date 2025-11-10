@@ -58,8 +58,9 @@ export class TenantProvisioningService {
       // 1. Create the database
       await this.createDatabase(dbName);
 
-      // 2. Build connection URL for tenant
-      const tenantDbUrl = `postgresql://${this.dbUser}:${this.dbPassword}@${this.dbHost}:${this.dbPort}/${dbName}?schema=public`;
+      // 2. Build connection URL for tenant (URL-encode password for connection string)
+      const encodedPassword = encodeURIComponent(this.dbPassword);
+      const tenantDbUrl = `postgresql://${this.dbUser}:${encodedPassword}@${this.dbHost}:${this.dbPort}/${dbName}?schema=public`;
 
       // 3. Run migrations on tenant database
       await this.runTenantMigrations(tenantDbUrl);
