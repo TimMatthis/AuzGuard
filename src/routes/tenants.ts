@@ -4,6 +4,7 @@ import { TenantProvisioningService } from '../services/tenantProvisioning';
 import { TenantConnectionManager } from '../services/tenantConnectionManager';
 import { AuthService } from '../services/auth';
 import { UserRole } from '../types';
+import { EmailService } from '../services/email';
 
 interface TenantRoutesOptions {
   provisioningService: TenantProvisioningService;
@@ -78,6 +79,20 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       };
       
       const token = authService.generateToken(user);
+
+      // Send welcome email to admin (non-blocking)
+      const emailService = new EmailService();
+      const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      emailService.sendCompanyWelcomeEmail({
+        companyName: result.tenant.company_name,
+        adminName: admin_name || admin_email.split('@')[0],
+        adminEmail: admin_email,
+        companySlug: result.tenant.slug,
+        loginUrl: `${loginUrl}/login`
+      }).catch(error => {
+        // Log email error but don't fail the request
+        console.error('Failed to send welcome email:', error);
+      });
 
       return {
         success: true,
