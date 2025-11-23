@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { fetch } from 'undici';
+import crypto from 'crypto';
 import { Effect, GatewayDashboardMetrics, RouteTarget } from '../types';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -32,9 +33,9 @@ class OpenAIConnector implements ModelConnector {
   public readonly provider = 'openai';
   private client: OpenAI | null;
 
-  constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    this.client = apiKey ? new OpenAI({ apiKey }) : null;
+  constructor(apiKey?: string) {
+    const key = apiKey || process.env.OPENAI_API_KEY;
+    this.client = key ? new OpenAI({ apiKey: key }) : null;
   }
 
   isConfigured(): boolean {
@@ -75,9 +76,9 @@ class GeminiConnector implements ModelConnector {
   public readonly provider = 'google_generative_ai';
   private client: GoogleGenerativeAI | null;
 
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    this.client = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+  constructor(apiKey?: string) {
+    const key = apiKey || process.env.GEMINI_API_KEY;
+    this.client = key ? new GoogleGenerativeAI(key) : null;
   }
 
   isConfigured(): boolean {
@@ -213,6 +214,58 @@ export class ModelGardenService {
   constructor(private prisma: PrismaClient) {
     this.connectors = new Map();
 
+    // Initialize connectors with environment variables as fallback
+    this.initializeConnectors();
+  }
+
+  // Initialize connectors for a specific tenant using stored API keys
+  async initializeTenantConnectors(tenantPrisma: PrismaClient): Promise<void> {
+    const connectors = new Map<string, ModelConnector>();
+
+    // Get all active API keys for this tenant
+    const apiKeys = await tenantPrisma.apiKey.findMany({
+      where: { is_active: true }
+    });
+
+    // Create a map of provider -> decrypted key
+    const keyMap = new Map<string, string>();
+    for (const apiKey of apiKeys) {
+      try {
+        const decryptedKey = this.decryptApiKey(apiKey.encrypted_key);
+        keyMap.set(apiKey.provider, decryptedKey);
+
+        // Update last_used_at
+        await tenantPrisma.apiKey.update({
+          where: { id: apiKey.id },
+          data: { last_used_at: new Date() }
+        });
+      } catch (error) {
+        console.warn(`Failed to decrypt API key for provider ${apiKey.provider}:`, error);
+      }
+    }
+
+    // Initialize connectors with tenant-specific keys
+    const openai = new OpenAIConnector(keyMap.get('openai') || keyMap.get('azure_openai'));
+    if (openai.isConfigured()) {
+      connectors.set('openai', openai);
+      connectors.set('azure_openai', openai);
+    }
+
+    const gemini = new GeminiConnector(keyMap.get('gemini') || keyMap.get('google_generative_ai') || keyMap.get('gcp_vertex_ai'));
+    if (gemini.isConfigured()) {
+      connectors.set('google_generative_ai', gemini);
+      connectors.set('gcp_vertex_ai', gemini);
+    }
+
+    const ollama = new OllamaConnector();
+    if (ollama.isConfigured()) {
+      connectors.set('ollama', ollama);
+    }
+
+    this.connectors = connectors;
+  }
+
+  private initializeConnectors(): void {
     const openai = new OpenAIConnector();
     if (openai.isConfigured()) {
       this.connectors.set('openai', openai);
@@ -229,6 +282,27 @@ export class ModelGardenService {
     if (ollama.isConfigured()) {
       this.connectors.set('ollama', ollama);
     }
+  }
+
+  private decryptApiKey(encryptedKey: string): string {
+    // Use the same encryption utilities as the API key routes
+    const ENCRYPTION_KEY = process.env.API_KEY_ENCRYPTION_KEY || 'your-32-character-encryption-key-here';
+    const ALGORITHM = 'aes-256-gcm';
+
+    const parts = encryptedKey.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted data format');
+    }
+
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    const authTag = Buffer.from(parts[2], 'hex');
+
+    const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
   }
 
   async invoke(context: ModelInvocationContext): Promise<ModelInvocationOutcome> {
@@ -527,37 +601,66 @@ export class ModelGardenService {
     const estimatedTokens = result.totalTokens ?? this.estimateTokens(context.requestPayload);
     const estimatedCost = this.estimateCost(context.target, estimatedTokens);
 
-    const record = await this.prisma.modelInvocation.create({
-      data: {
-        policy_id: context.policyId,
-        rule_id: context.matchedRule,
-        decision: context.decision,
-        model_pool: context.modelPoolId,
-        provider: context.target.provider,
-        model_identifier: this.resolveModelIdentifier(context.target),
-        latency_ms: Math.max(0, Math.round(result.latencyMs)),
-        prompt_tokens: result.promptTokens ?? undefined,
-        completion_tokens: result.completionTokens ?? undefined,
-        total_tokens: estimatedTokens ?? undefined,
-        estimated_cost_aud: estimatedCost ?? undefined,
-        audit_log_id: context.auditLogId,
-        request_payload: context.requestPayload as Prisma.InputJsonValue,
-        response_payload: result.rawResponse as Prisma.InputJsonValue,
-        error_message: error instanceof Error ? error.message : undefined
+    let record: {
+      id: string;
+      provider: string;
+      model_identifier: string;
+      latency_ms: number;
+      estimated_cost_aud: number | null;
+      prompt_tokens: number | null;
+      completion_tokens: number | null;
+      total_tokens: number | null;
+      error_message: string | null;
+    } | null = null;
+
+    try {
+      record = await this.prisma.modelInvocation.create({
+        data: {
+          policy_id: context.policyId,
+          rule_id: context.matchedRule,
+          decision: context.decision,
+          model_pool: context.modelPoolId,
+          provider: context.target.provider,
+          model_identifier: this.resolveModelIdentifier(context.target),
+          latency_ms: Math.max(0, Math.round(result.latencyMs)),
+          prompt_tokens: result.promptTokens ?? undefined,
+          completion_tokens: result.completionTokens ?? undefined,
+          total_tokens: estimatedTokens ?? undefined,
+          estimated_cost_aud: estimatedCost ?? undefined,
+          audit_log_id: context.auditLogId,
+          request_payload: context.requestPayload as Prisma.InputJsonValue,
+          response_payload: result.rawResponse as Prisma.InputJsonValue,
+          error_message: error instanceof Error ? error.message : undefined
+        }
+      });
+    } catch (persistError) {
+      const normalizedMessage = (persistError as { message?: string })?.message?.toLowerCase() || '';
+      const code = (persistError as { code?: string })?.code;
+      const missingTable =
+        normalizedMessage.includes('does not exist') ||
+        normalizedMessage.includes('relation') ||
+        normalizedMessage.includes('model_invocations');
+      const schemaIssues = code && ['P2021', 'P2022', 'P2010'].includes(code);
+      if (missingTable || schemaIssues) {
+        console.warn('[ModelGardenService] Could not persist model invocation (table missing). Continuing without DB record.');
+      } else {
+        console.warn('[ModelGardenService] Failed to persist model invocation:', persistError);
       }
-    });
+    }
+
+    const fallbackId = record?.id ?? `local_${Date.now()}`;
 
     return {
-      invocation_id: record.id,
-      provider: record.provider,
-      model_identifier: record.model_identifier,
-      latency_ms: record.latency_ms,
-      estimated_cost_aud: record.estimated_cost_aud ?? undefined,
-      prompt_tokens: record.prompt_tokens ?? undefined,
-      completion_tokens: record.completion_tokens ?? undefined,
-      total_tokens: record.total_tokens ?? undefined,
+      invocation_id: fallbackId,
+      provider: record?.provider ?? context.target.provider,
+      model_identifier: record?.model_identifier ?? this.resolveModelIdentifier(context.target),
+      latency_ms: record?.latency_ms ?? Math.max(0, Math.round(result.latencyMs)),
+      estimated_cost_aud: (record?.estimated_cost_aud ?? estimatedCost) ?? undefined,
+      prompt_tokens: record?.prompt_tokens ?? result.promptTokens ?? undefined,
+      completion_tokens: record?.completion_tokens ?? result.completionTokens ?? undefined,
+      total_tokens: record?.total_tokens ?? estimatedTokens ?? undefined,
       response_excerpt: this.buildExcerpt(result.outputText),
-      error_message: record.error_message ?? undefined
+      error_message: record?.error_message ?? (error instanceof Error ? error.message : undefined)
     };
   }
 

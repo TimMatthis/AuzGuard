@@ -83,7 +83,7 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       // Send verification email to admin (non-blocking)
       const emailService = new EmailService();
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const verificationUrl = `${frontendUrl}/verify-email?token=${result.initialUser.verification_token}&email=${encodeURIComponent(admin_email)}`;
+      const verificationUrl = `${frontendUrl}/verify-email?token=${result.initialUser.verification_token}&email=${encodeURIComponent(admin_email)}&slug=${encodeURIComponent(result.tenant.slug)}`;
       
       emailService.sendEmailVerification({
         companyName: result.tenant.company_name,
@@ -146,11 +146,13 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
 
   // Public route: Verify email
   fastify.get('/verify-email', async (
-    request: FastifyRequest<{ Querystring: { token: string; email: string } }>,
+    request: FastifyRequest<{ Querystring: { token: string; email: string; slug?: string } }>,
     reply: FastifyReply
   ) => {
     try {
-      const { token, email } = request.query;
+      const { token, email, slug } = request.query;
+
+      console.log('Email verification attempt:', { email, tokenLength: token?.length });
 
       if (!token || !email) {
         return reply.status(400).send({
@@ -158,29 +160,128 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
         });
       }
 
-      // First, find which tenant this user belongs to
-      const tenant = await provisioningService['masterPrisma'].tenant.findFirst({
-        where: { admin_email: email }
+      // If slug provided, prefer verifying against that specific tenant first
+      if (slug) {
+        try {
+          const tenantInfo = await connectionManager.getTenantInfo(slug);
+          if (!tenantInfo) {
+            return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Company not found' } });
+          }
+
+          const tp = await connectionManager.getTenantConnection(slug);
+          const u = await tp.user.findFirst({ where: { email, verification_token: token } });
+          if (u) {
+            // Proceed with verification flow on this tenant
+            if (u.verification_token_expires && new Date() > u.verification_token_expires) {
+              return reply.status(400).send({
+                error: { code: 'TOKEN_EXPIRED', message: 'Verification token has expired. Please request a new one.' }
+              });
+            }
+
+            if (u.email_verified) {
+              return reply.status(200).send({
+                success: true,
+                message: 'Email already verified. You can now log in.',
+                already_verified: true
+              });
+            }
+
+            await tp.user.update({
+              where: { id: u.id },
+              data: { email_verified: true, verification_token: null, verification_token_expires: null }
+            });
+
+            if (u.role === 'admin') {
+              await provisioningService['masterPrisma'].tenant.update({
+                where: { id: tenantInfo.id },
+                data: { admin_email_verified: true }
+              });
+            }
+
+            const emailService = new EmailService();
+            const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            emailService.sendCompanyWelcomeEmail({
+              companyName: tenantInfo.company_name,
+              adminName: u.name || email.split('@')[0],
+              adminEmail: email,
+              companySlug: tenantInfo.slug,
+              loginUrl: `${loginUrl}/login`
+            }).catch(error => {
+              console.error('Failed to send welcome email:', error);
+            });
+
+            return { success: true, message: 'Email verified successfully! You can now log in to your account.' };
+          }
+          // If not found for this slug, check if the user is already verified to make the endpoint idempotent
+          const userByEmail = await tp.user.findFirst({ where: { email } });
+          if (userByEmail?.email_verified) {
+            return reply.status(200).send({
+              success: true,
+              message: 'Email already verified. You can now log in.',
+              already_verified: true
+            });
+          }
+          // If not found for this slug, fall through to candidate search by email (backward-compatible)
+        } catch (e) {
+          console.error('Slug-specific verification error:', e);
+          // Fall through to email-based lookup
+        }
+      }
+
+      // Find potential tenants by admin email. In dev/testing it's common
+      // to reuse the same admin email for multiple tenants, so we must
+      // check all matches to find the one that owns this token.
+      const candidateTenants = await provisioningService['masterPrisma'].tenant.findMany({
+        where: { admin_email: email },
+        orderBy: { created_at: 'desc' }
       });
 
-      if (!tenant) {
+      console.log('Tenant candidates for verification:', candidateTenants.map(t => ({ id: t.id, slug: t.slug })));
+
+      if (!candidateTenants.length) {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'User not found' }
         });
       }
 
-      // Connect to tenant database
-      const tenantPrisma = await connectionManager.getTenantConnection(tenant.slug);
-      
-      // Find user by email and verification token
-      const user = await tenantPrisma.user.findFirst({
-        where: {
-          email,
-          verification_token: token
-        }
-      });
+      // Iterate candidates until we find a matching user+token
+      let matchedTenant: typeof candidateTenants[number] | null = null;
+      let user: any = null;
+      let tenantPrisma: any = null;
 
-      if (!user) {
+      for (const t of candidateTenants) {
+        try {
+          const tp = await connectionManager.getTenantConnection(t.slug);
+          const u = await tp.user.findFirst({ where: { email, verification_token: token } });
+          if (u) {
+            matchedTenant = t;
+            user = u;
+            tenantPrisma = tp;
+            break;
+          }
+        } catch (e) {
+          console.error('Error checking tenant for verification:', t.slug, e);
+          continue;
+        }
+      }
+
+      if (!matchedTenant || !user) {
+        // Idempotency: if we can find the user by email and they are already verified in any candidate tenant,
+        // return success instead of error (handles React StrictMode double calls)
+        for (const t of candidateTenants) {
+          try {
+            const tp = await connectionManager.getTenantConnection(t.slug);
+            const userByEmail = await tp.user.findFirst({ where: { email } });
+            if (userByEmail?.email_verified) {
+              return reply.status(200).send({
+                success: true,
+                message: 'Email already verified. You can now log in.',
+                already_verified: true
+              });
+            }
+          } catch (_) { /* ignore */ }
+        }
+
         return reply.status(400).send({
           error: { code: 'INVALID_TOKEN', message: 'Invalid or expired verification token' }
         });
@@ -215,7 +316,7 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       // Update master tenant record to mark admin email as verified
       if (user.role === 'admin') {
         await provisioningService['masterPrisma'].tenant.update({
-          where: { id: tenant.id },
+          where: { id: matchedTenant.id },
           data: { admin_email_verified: true }
         });
       }
@@ -224,10 +325,10 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
       const emailService = new EmailService();
       const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       emailService.sendCompanyWelcomeEmail({
-        companyName: tenant.company_name,
+        companyName: matchedTenant.company_name,
         adminName: user.name || email.split('@')[0],
         adminEmail: email,
-        companySlug: tenant.slug,
+        companySlug: matchedTenant.slug,
         loginUrl: `${loginUrl}/login`
       }).catch(error => {
         console.error('Failed to send welcome email:', error);
@@ -390,4 +491,3 @@ export async function tenantRoutes(fastify: FastifyInstance, options: TenantRout
     }
   });
 }
-

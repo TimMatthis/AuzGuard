@@ -19,7 +19,7 @@ model Tenant {
   status              String   @default("active") // active, suspended, deleted
   
   // Admin contact
-  admin_email         String
+  admin_email         String   @unique
   admin_name          String?
   admin_email_verified Boolean  @default(false)
   
@@ -67,4 +67,3 @@ model AuditLog {
   @@index([tenant_id])
   @@index([created_at])
 }
-

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Rule, Category, Jurisdiction, Effect, Severity } from '../types';
+import { Rule, Category, Jurisdiction, Effect, Severity, ResidencyRequirement } from '../types';
+import { useModelPools } from '../hooks/useModelPools';
 
 interface RuleDefinitionTabProps {
   rule: Rule;
@@ -8,9 +9,24 @@ interface RuleDefinitionTabProps {
 }
 
 export function RuleDefinitionTab({ rule, onChange, isEditing }: RuleDefinitionTabProps) {
+  const { data: modelPools } = useModelPools();
+
   const updateField = (field: keyof Rule, value: any) => {
     onChange({ ...rule, [field]: value });
   };
+
+  const routeValue = rule.route_to || '';
+  const poolOptions = modelPools ?? [];
+  const hasCustomRoute = Boolean(
+    routeValue && !poolOptions.some(pool => pool.pool_id === routeValue)
+  );
+  const routeSelectValue = hasCustomRoute ? routeValue : routeValue;
+
+  const residencyOptions: Array<{ value: ResidencyRequirement; label: string }> = [
+    { value: 'AUTO', label: 'Auto (use policy default/router)' },
+    { value: 'AU_ONSHORE', label: 'Australian onshore only' },
+    { value: 'ON_PREMISE', label: 'On-premise/local model' }
+  ];
 
   return (
     <div className="space-y-6">
@@ -151,17 +167,59 @@ export function RuleDefinitionTab({ rule, onChange, isEditing }: RuleDefinitionT
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Residency Requirement</label>
+          <select
+            value={rule.residency_requirement || 'AUTO'}
+            onChange={(e) => updateField('residency_requirement', e.target.value as ResidencyRequirement)}
+            disabled={!isEditing}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {residencyOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Enforces onshore/on-prem routing when this rule matches.</p>
+        </div>
+      </div>
+
       {(rule.effect === 'ROUTE' || rule.effect === 'WARN_ROUTE') && (
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Route To</label>
-          <input
-            type="text"
-            value={rule.route_to || ''}
+          <select
+            value={routeSelectValue}
             onChange={(e) => updateField('route_to', e.target.value)}
             disabled={!isEditing}
-            placeholder="e.g., onshore_default_pool"
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          />
+          >
+            <option value="">{poolOptions.length ? 'Select a model pool…' : 'No model pools available'}</option>
+            {poolOptions.map(pool => (
+              <option key={pool.pool_id} value={pool.pool_id}>
+                {pool.pool_id}
+                {pool.region ? ` • ${pool.region}` : ''}
+                {pool.description ? ` — ${pool.description}` : ''}
+              </option>
+            ))}
+            {hasCustomRoute && (
+              <option value={routeValue}>{routeValue} (custom)</option>
+            )}
+          </select>
+          {isEditing && (
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Custom pool ID (optional)</label>
+              <input
+                type="text"
+                value={routeValue}
+                onChange={(e) => updateField('route_to', e.target.value)}
+                placeholder="custom_pool_id"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+          {!isEditing && !routeValue && (
+            <p className="text-xs text-gray-500 mt-1">No route selected.</p>
+          )}
         </div>
       )}
 

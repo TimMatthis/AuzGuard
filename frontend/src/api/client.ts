@@ -13,7 +13,12 @@ import {
   RoutingRequest,
   RoutingResponse,
   GatewayDashboardMetrics,
-  Rule
+  Rule,
+  ChatSession,
+  ChatMessage,
+  CreateChatSessionInput,
+  UpdateChatSessionInput,
+  ChatRole
 } from '../types';
 
 const API_BASE = '/api';
@@ -56,7 +61,11 @@ class ApiClient {
     try { data = raw ? JSON.parse(raw) : undefined; } catch { /* not JSON */ }
 
     if (!response.ok) {
-      const message = data?.error?.message || data?.message || raw || `${response.status} ${response.statusText}`;
+      // If backend sent a structured error, throw it to preserve code/message
+      if (data?.error) {
+        throw data.error;
+      }
+      const message = data?.message || raw || `${response.status} ${response.statusText}`;
       throw new Error(message || 'Request failed');
     }
 
@@ -294,12 +303,14 @@ class ApiClient {
     return this.request('/company/register', { method: 'POST', body: JSON.stringify(data) });
   }
   
-  async verifyEmail(token: string, email: string): Promise<{
+  async verifyEmail(token: string, email: string, slug?: string): Promise<{
     success: boolean;
     message: string;
     already_verified?: boolean;
   }> {
-    return this.request(`/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`, {
+    const qs = new URLSearchParams({ token, email });
+    if (slug) qs.set('slug', slug);
+    return this.request(`/verify-email?${qs.toString()}`, {
       method: 'GET'
     });
   }
@@ -339,6 +350,9 @@ class ApiClient {
   }
   async getUser(id: string): Promise<any> {
     return this.request(`/users/${id}`);
+  }
+  async getCurrentUser(): Promise<import('../types').User> {
+    return this.request('/users/me');
   }
   async createUser(user: { email: string; password: string; role?: string; org_id?: string; user_group_id?: string }): Promise<import('../types').User> {
     return this.request('/users', { method: 'POST', body: JSON.stringify(user) });
@@ -393,6 +407,82 @@ class ApiClient {
     if (params.to) qs.append('to', params.to);
     const endpoint = qs.toString() ? `/routes/metrics/paths?${qs.toString()}` : '/routes/metrics/paths';
     return this.request(endpoint);
+  }
+
+  // API Key management endpoints
+  async getApiKeys(): Promise<Array<{ id: string; provider: string; name: string; is_active: boolean; created_at: string; updated_at: string; last_used_at?: string }>> {
+    const response = await this.request<{ api_keys: Array<{ id: string; provider: string; name: string; is_active: boolean; created_at: string; updated_at: string; last_used_at?: string }> }>('/api-keys');
+    return response.api_keys;
+  }
+
+  async createApiKey(data: { provider: string; name: string; api_key: string }): Promise<{ id: string; provider: string; name: string; is_active: boolean; created_at: string; updated_at: string }> {
+    return this.request('/api-keys', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateApiKey(id: string, data: { name?: string; api_key?: string; is_active?: boolean }): Promise<{ id: string; provider: string; name: string; is_active: boolean; created_at: string; updated_at: string; last_used_at?: string }> {
+    return this.request(`/api-keys/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    return this.request(`/api-keys/${id}`, { method: 'DELETE' });
+  }
+
+  async getApiKeyProviders(): Promise<Array<{ id: string; name: string; description: string }>> {
+    const response = await this.request<{ providers: Array<{ id: string; name: string; description: string }> }>('/api-keys/providers');
+    return response.providers;
+  }
+
+  async testApiKey(id: string): Promise<{ success: boolean; message: string; response_time_ms: number; model_used?: string }> {
+    return this.request('/api-keys/' + id + '/test', { method: 'POST' });
+  }
+
+  async getAvailableModels(): Promise<Array<{ provider: string; model_identifier: string; pool_id: string; pool_description: string }>> {
+    const response = await this.request<{ models: Array<{ provider: string; model_identifier: string; pool_id: string; pool_description: string }> }>('/api-keys/models');
+    return response.models;
+  }
+
+  // Chat session endpoints
+  async getChatSessions(): Promise<ChatSession[]> {
+    const response = await this.request<{ sessions: ChatSession[] }>('/chat/sessions');
+    return response.sessions;
+  }
+
+  async getChatSession(sessionId: string): Promise<ChatSession> {
+    const response = await this.request<{ session: ChatSession }>(`/chat/sessions/${sessionId}`);
+    return response.session;
+  }
+
+  async createChatSession(input: CreateChatSessionInput): Promise<ChatSession> {
+    const response = await this.request<{ session: ChatSession }>('/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+    return response.session;
+  }
+
+  async updateChatSession(sessionId: string, input: UpdateChatSessionInput): Promise<ChatSession> {
+    const response = await this.request<{ session: ChatSession }>(`/chat/sessions/${sessionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(input)
+    });
+    return response.session;
+  }
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    return this.request(`/chat/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
+  async addChatMessage(sessionId: string, role: ChatRole, content: string): Promise<ChatMessage> {
+    const response = await this.request<{ message: ChatMessage }>(`/chat/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ role, content })
+    });
+    return response.message;
+  }
+
+  async getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+    const response = await this.request<{ messages: ChatMessage[] }>(`/chat/sessions/${sessionId}/messages`);
+    return response.messages;
   }
 
   // Override endpoints

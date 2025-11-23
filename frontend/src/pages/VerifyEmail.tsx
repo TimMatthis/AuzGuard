@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 
@@ -8,11 +8,16 @@ export function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [alreadyVerified, setAlreadyVerified] = useState(false);
+  const ranRef = useRef(false);
 
   useEffect(() => {
+    if (ranRef.current) return; // avoid double-invoke in React StrictMode
+    ranRef.current = true;
+
     const verifyEmail = async () => {
       const token = searchParams.get('token');
       const email = searchParams.get('email');
+      const slug = searchParams.get('slug') || undefined;
 
       if (!token || !email) {
         setStatus('error');
@@ -21,7 +26,7 @@ export function VerifyEmail() {
       }
 
       try {
-        const response = await apiClient.verifyEmail(token, email);
+        const response = await apiClient.verifyEmail(token, email, slug);
         setStatus('success');
         setMessage(response.message);
         setAlreadyVerified(response.already_verified || false);

@@ -31,18 +31,29 @@ export class AuditService {
       auditLogFields
     );
 
-    await this.prisma.auditLog.create({
-      data: {
-        id: entry.id,
-        rule_id: entry.rule_id,
-        effect: entry.effect,
-        actor_id: entry.actor_id ?? undefined,
-        payload_hash: entry.payload_hash,
-        prev_hash: entry.prev_hash,
-        merkle_leaf: entry.merkle_leaf || null,
-        redacted_payload: entry.redacted_payload as Prisma.InputJsonValue
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          id: entry.id,
+          rule_id: entry.rule_id,
+          effect: entry.effect,
+          actor_id: entry.actor_id ?? undefined,
+          payload_hash: entry.payload_hash,
+          prev_hash: entry.prev_hash,
+          merkle_leaf: entry.merkle_leaf || null,
+          redacted_payload: entry.redacted_payload as Prisma.InputJsonValue
+        }
+      });
+    } catch (error) {
+      const message = (error as { message?: string })?.message?.toLowerCase() || '';
+      const code = (error as { code?: string })?.code;
+      const missingTable = message.includes('does not exist') || message.includes('relation') || message.includes('audit_log');
+      if (missingTable || code === 'P2021' || code === 'P2022' || code === 'P2010') {
+        console.warn('[AuditService] Could not persist audit log to database (missing table or schema). Continuing with in-memory log only.');
+      } else {
+        console.warn('[AuditService] Failed to persist audit log entry:', error);
       }
-    });
+    }
 
     return entry;
   }

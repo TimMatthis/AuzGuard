@@ -19,6 +19,8 @@ export type Jurisdiction =
 
 export type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type ResidencyRequirement = "AUTO" | "AU_ONSHORE" | "ON_PREMISE";
+
 export type UserRole = "admin" | "compliance" | "developer" | "viewer" | "chat";
 
 // Product access control (frontend-only types for UI/demo)
@@ -62,6 +64,7 @@ export interface Rule {
   match?: Record<string, unknown>;
   condition: string;
   effect: Effect;
+  residency_requirement?: ResidencyRequirement;
   route_to?: string;
   obligations?: string[];
   evidence_requirements?: string[];
@@ -96,6 +99,8 @@ export interface Policy {
     conflict_resolution: "FIRST_MATCH";
     default_effect: Effect;
   };
+  residency_requirement_default?: ResidencyRequirement;
+  residency_override?: ResidencyRequirement;
   rules: Rule[];
 }
 
@@ -111,9 +116,20 @@ export interface SimulationTraceStep {
   skipped?: boolean;
 }
 
+export interface RuleInsight {
+  rule_id: string;
+  confidence: number;
+  signals: string[];
+  suggested_fields?: Record<string, unknown>;
+  missing_fields?: string[];
+  notes?: string;
+  matched?: boolean;
+}
+
 export interface SimulationResult {
   decision: Effect;
   route_to?: string;
+  residency_requirement?: ResidencyRequirement;
   matched_rule?: string;
   trace: SimulationTraceStep[];
   obligations_applied: string[];
@@ -122,6 +138,7 @@ export interface SimulationResult {
     require_justification: boolean;
   };
   audit_log_id?: string;
+  rule_insights?: RuleInsight[];
 }
 
 export interface AuditLogItem {
@@ -219,6 +236,7 @@ export interface RoutingPreference {
   max_cost_per_1k_aud?: number;
   min_quality_score?: number;
   required_output_tokens?: number;
+  requires_on_prem?: boolean;
 }
 
 export interface RoutingCandidate {
@@ -306,6 +324,7 @@ export interface User {
   email: string;
   role: UserRole;
   org_id?: string;
+  user_group_id?: string;
   created_at: string;
   last_login?: string;
 }
@@ -409,4 +428,36 @@ export interface UserGroup {
   allowed_pools?: string[];
   default_policy_id?: string;
   allowed_policies?: string[];
+}
+
+// Chat types
+export type ChatRole = 'user' | 'assistant';
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  created_at: string;
+}
+
+export interface ChatSession {
+  id: string;
+  user_id: string;
+  title?: string;
+  policy_id?: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessage[];
+}
+
+export interface CreateChatSessionInput {
+  user_id?: string; // Will be set by backend based on authenticated user
+  title?: string;
+  policy_id?: string;
+  messages?: ChatMessage[];
+}
+
+export interface UpdateChatSessionInput {
+  title?: string;
+  policy_id?: string;
 }

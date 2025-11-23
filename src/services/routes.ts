@@ -1,5 +1,6 @@
 // Route service for model pools, profiling, and routing decisions
 
+import { randomUUID } from 'crypto';
 import { PrismaClient, Prisma } from '@prisma/client';
 import {
   ModelPool,
@@ -9,138 +10,482 @@ import {
   RoutingCandidate,
   RoutingDecision
 } from '../types';
+import { sampleModelPools, sampleRouteTargets } from '../data/sampleRoutingData';
 
 export class RouteService {
-  constructor(private prisma: PrismaClient) {}
+  private fallbackMode = false;
+  private fallbackPools: ModelPool[];
+  private fallbackTargets: RouteTarget[];
+
+  constructor(private prisma: PrismaClient) {
+    this.fallbackPools = sampleModelPools.map(pool => this.clonePool(pool));
+    this.fallbackTargets = sampleRouteTargets.map(target => this.cloneTarget(target));
+  }
 
   async getAllModelPools(): Promise<ModelPool[]> {
-    const pools = await this.prisma.modelPool.findMany({
-      include: {
-        routeTargets: true
-      }
-    });
+    if (this.fallbackMode) {
+      return this.clonePools(this.fallbackPools);
+    }
 
-    return pools.map((pool) => this.mapDbPoolToModelPool(pool));
+    try {
+      const pools = await this.prisma.modelPool.findMany({
+        include: {
+          routeTargets: true
+        }
+      });
+
+      return pools.map((pool) => this.mapDbPoolToModelPool(pool));
+    } catch (error) {
+      if (!this.enableFallback('getAllModelPools', error)) {
+        throw error;
+      }
+      return this.clonePools(this.fallbackPools);
+    }
   }
 
   async getModelPoolById(poolId: string): Promise<ModelPool | null> {
-    const pool = await this.prisma.modelPool.findUnique({
-      where: { pool_id: poolId },
-      include: {
-        routeTargets: true
-      }
-    });
+    if (this.fallbackMode) {
+      return this.getFallbackPool(poolId) ?? null;
+    }
 
-    return pool ? this.mapDbPoolToModelPool(pool) : null;
+    try {
+      const pool = await this.prisma.modelPool.findUnique({
+        where: { pool_id: poolId },
+        include: {
+          routeTargets: true
+        }
+      });
+
+      return pool ? this.mapDbPoolToModelPool(pool) : null;
+    } catch (error) {
+      if (!this.enableFallback('getModelPoolById', error)) {
+        throw error;
+      }
+      return this.getFallbackPool(poolId) ?? null;
+    }
   }
 
   async createModelPool(pool: Omit<ModelPool, 'health'>): Promise<ModelPool> {
-    const created = await this.prisma.modelPool.create({
-      data: {
-        pool_id: pool.pool_id,
-        region: pool.region,
-        description: pool.description,
-        tags: pool.tags as unknown as Prisma.InputJsonValue,
-        targets: pool.targets as unknown as Prisma.InputJsonValue,
-        health: {
-          status: 'healthy',
-          last_check: new Date().toISOString()
-        } as unknown as Prisma.InputJsonValue
-      }
-    });
+    if (this.fallbackMode) {
+      return this.createFallbackPool(pool);
+    }
 
-    return this.mapDbPoolToModelPool(created);
+    try {
+      const created = await this.prisma.modelPool.create({
+        data: {
+          pool_id: pool.pool_id,
+          region: pool.region,
+          description: pool.description,
+          tags: pool.tags as unknown as Prisma.InputJsonValue,
+          targets: pool.targets as unknown as Prisma.InputJsonValue,
+          health: {
+            status: 'healthy',
+            last_check: new Date().toISOString()
+          } as unknown as Prisma.InputJsonValue
+        }
+      });
+
+      return this.mapDbPoolToModelPool(created);
+    } catch (error) {
+      if (!this.enableFallback('createModelPool', error)) {
+        throw error;
+      }
+      return this.createFallbackPool(pool);
+    }
   }
 
   async updateModelPool(poolId: string, pool: Partial<ModelPool>): Promise<ModelPool> {
-    const updated = await this.prisma.modelPool.update({
-      where: { pool_id: poolId },
-      data: {
-        region: pool.region,
-        description: pool.description,
-        tags: pool.tags as unknown as Prisma.InputJsonValue | undefined,
-        targets: pool.targets as unknown as Prisma.InputJsonValue | undefined,
-        health: pool.health as unknown as Prisma.InputJsonValue | undefined
-      }
-    });
+    if (this.fallbackMode) {
+      return this.updateFallbackPool(poolId, pool);
+    }
 
-    return this.mapDbPoolToModelPool(updated);
+    try {
+      const updated = await this.prisma.modelPool.update({
+        where: { pool_id: poolId },
+        data: {
+          region: pool.region,
+          description: pool.description,
+          tags: pool.tags as unknown as Prisma.InputJsonValue | undefined,
+          targets: pool.targets as unknown as Prisma.InputJsonValue | undefined,
+          health: pool.health as unknown as Prisma.InputJsonValue | undefined
+        }
+      });
+
+      return this.mapDbPoolToModelPool(updated);
+    } catch (error) {
+      if (!this.enableFallback('updateModelPool', error)) {
+        throw error;
+      }
+      return this.updateFallbackPool(poolId, pool);
+    }
   }
 
   async deleteModelPool(poolId: string): Promise<void> {
-    await this.prisma.modelPool.delete({
-      where: { pool_id: poolId }
-    });
+    if (this.fallbackMode) {
+      this.deleteFallbackPool(poolId);
+      return;
+    }
+
+    try {
+      await this.prisma.modelPool.delete({
+        where: { pool_id: poolId }
+      });
+    } catch (error) {
+      if (!this.enableFallback('deleteModelPool', error)) {
+        throw error;
+      }
+      this.deleteFallbackPool(poolId);
+    }
   }
 
   async getAllRouteTargets(): Promise<RouteTarget[]> {
-    const targets = await this.prisma.routeTarget.findMany();
-    return targets.map(target => this.mapDbTargetToRouteTarget(target));
+    if (this.fallbackMode) {
+      return this.getFallbackTargets();
+    }
+
+    try {
+      const targets = await this.prisma.routeTarget.findMany();
+      return targets.map(target => this.mapDbTargetToRouteTarget(target));
+    } catch (error) {
+      if (!this.enableFallback('getAllRouteTargets', error)) {
+        throw error;
+      }
+      return this.getFallbackTargets();
+    }
   }
 
   async createRouteTarget(target: Omit<RouteTarget, 'id'>): Promise<RouteTarget> {
-    const created = await this.prisma.routeTarget.create({
-      data: {
-        pool_id: target.pool_id,
-        provider: target.provider,
-        endpoint: target.endpoint,
-        weight: target.weight,
-        region: target.region,
-        is_active: target.is_active,
-        profile: (target.profile as unknown as Prisma.InputJsonValue) ?? null
-      }
-    });
+    if (this.fallbackMode) {
+      return this.createFallbackTarget(target);
+    }
 
-    return this.mapDbTargetToRouteTarget(created);
+    try {
+      const created = await this.prisma.routeTarget.create({
+        data: {
+          pool_id: target.pool_id,
+          provider: target.provider,
+          endpoint: target.endpoint,
+          weight: target.weight,
+          region: target.region,
+          is_active: target.is_active,
+          profile: (target.profile as unknown as Prisma.InputJsonValue) ?? null
+        }
+      });
+
+      return this.mapDbTargetToRouteTarget(created);
+    } catch (error) {
+      if (!this.enableFallback('createRouteTarget', error)) {
+        throw error;
+      }
+      return this.createFallbackTarget(target);
+    }
   }
 
   async updateRouteTarget(id: string, target: Partial<RouteTarget>): Promise<RouteTarget> {
-    const updated = await this.prisma.routeTarget.update({
-      where: { id },
-      data: {
-        pool_id: target.pool_id,
-        provider: target.provider,
-        endpoint: target.endpoint,
-        weight: target.weight,
-        region: target.region,
-        is_active: target.is_active,
-        profile: (target.profile as unknown as Prisma.InputJsonValue | null | undefined) ?? undefined
-      }
-    });
+    if (this.fallbackMode) {
+      return this.updateFallbackTarget(id, target);
+    }
 
-    return this.mapDbTargetToRouteTarget(updated);
+    try {
+      const updated = await this.prisma.routeTarget.update({
+        where: { id },
+        data: {
+          pool_id: target.pool_id,
+          provider: target.provider,
+          endpoint: target.endpoint,
+          weight: target.weight,
+          region: target.region,
+          is_active: target.is_active,
+          profile: (target.profile as unknown as Prisma.InputJsonValue | null | undefined) ?? undefined
+        }
+      });
+
+      return this.mapDbTargetToRouteTarget(updated);
+    } catch (error) {
+      if (!this.enableFallback('updateRouteTarget', error)) {
+        throw error;
+      }
+      return this.updateFallbackTarget(id, target);
+    }
   }
 
   async deleteRouteTarget(id: string): Promise<void> {
-    await this.prisma.routeTarget.delete({
-      where: { id }
-    });
+    if (this.fallbackMode) {
+      this.deleteFallbackTarget(id);
+      return;
+    }
+
+    try {
+      await this.prisma.routeTarget.delete({
+        where: { id }
+      });
+    } catch (error) {
+      if (!this.enableFallback('deleteRouteTarget', error)) {
+        throw error;
+      }
+      this.deleteFallbackTarget(id);
+    }
   }
 
   async getRouteTargetsForPool(poolId: string): Promise<RouteTarget[]> {
-    const targets = await this.prisma.routeTarget.findMany({
-      where: {
-        pool_id: poolId,
-        is_active: true
-      }
-    });
+    if (this.fallbackMode) {
+      return this.getFallbackTargets(poolId);
+    }
 
-    return targets.map(target => this.mapDbTargetToRouteTarget(target));
+    try {
+      const targets = await this.prisma.routeTarget.findMany({
+        where: {
+          pool_id: poolId,
+          is_active: true
+        }
+      });
+
+      return targets.map(target => this.mapDbTargetToRouteTarget(target));
+    } catch (error) {
+      if (!this.enableFallback('getRouteTargetsForPool', error)) {
+        throw error;
+      }
+      return this.getFallbackTargets(poolId);
+    }
   }
 
   async updatePoolHealth(poolId: string, health: {
     status: 'healthy' | 'degraded' | 'unhealthy';
     errors?: string[];
   }): Promise<void> {
-    await this.prisma.modelPool.update({
-      where: { pool_id: poolId },
-      data: {
-        health: {
-          ...health,
-          last_check: new Date().toISOString()
-        } as unknown as Prisma.InputJsonValue
+    if (this.fallbackMode) {
+      this.updateFallbackHealth(poolId, health);
+      return;
+    }
+
+    try {
+      await this.prisma.modelPool.update({
+        where: { pool_id: poolId },
+        data: {
+          health: {
+            ...health,
+            last_check: new Date().toISOString()
+          } as unknown as Prisma.InputJsonValue
+        }
+      });
+    } catch (error) {
+      if (!this.enableFallback('updatePoolHealth', error)) {
+        throw error;
       }
-    });
+      this.updateFallbackHealth(poolId, health);
+    }
+  }
+
+  private createFallbackPool(pool: Omit<ModelPool, 'health'>): ModelPool {
+    if (this.fallbackPools.some(existing => existing.pool_id === pool.pool_id)) {
+      throw new Error(`Model pool ${pool.pool_id} already exists`);
+    }
+
+    const next: ModelPool = {
+      pool_id: pool.pool_id,
+      region: pool.region,
+      description: pool.description,
+      tags: this.deepClone(pool.tags),
+      targets: this.deepClone(pool.targets),
+      health: {
+        status: 'healthy',
+        last_check: new Date().toISOString()
+      }
+    };
+
+    this.fallbackPools.push(next);
+    return this.attachTargetsForPool(this.clonePool(next));
+  }
+
+  private updateFallbackPool(poolId: string, patch: Partial<ModelPool>): ModelPool {
+    const idx = this.fallbackPools.findIndex(pool => pool.pool_id === poolId);
+    if (idx === -1) {
+      throw new Error('Model pool not found');
+    }
+
+    const existing = this.fallbackPools[idx];
+    const updated: ModelPool = {
+      ...existing,
+      region: patch.region ?? existing.region,
+      description: patch.description ?? existing.description,
+      tags: patch.tags !== undefined ? this.deepClone(patch.tags) : existing.tags,
+      targets: patch.targets !== undefined ? this.deepClone(patch.targets) : existing.targets,
+      health: patch.health !== undefined ? this.deepClone(patch.health) : existing.health
+    };
+
+    this.fallbackPools[idx] = updated;
+    return this.attachTargetsForPool(this.clonePool(updated));
+  }
+
+  private deleteFallbackPool(poolId: string): void {
+    const idx = this.fallbackPools.findIndex(pool => pool.pool_id === poolId);
+    if (idx === -1) {
+      throw new Error('Model pool not found');
+    }
+    this.fallbackPools.splice(idx, 1);
+    this.fallbackTargets = this.fallbackTargets.filter(target => target.pool_id !== poolId);
+  }
+
+  private getFallbackPool(poolId: string): ModelPool | undefined {
+    const pool = this.fallbackPools.find(item => item.pool_id === poolId);
+    return pool ? this.attachTargetsForPool(this.clonePool(pool)) : undefined;
+  }
+
+  private getFallbackTargets(poolId?: string): RouteTarget[] {
+    const source = typeof poolId === 'string'
+      ? this.fallbackTargets.filter(target => target.pool_id === poolId && target.is_active)
+      : this.fallbackTargets;
+    return source.map(target => this.cloneTarget(target));
+  }
+
+  private createFallbackTarget(target: Omit<RouteTarget, 'id'>): RouteTarget {
+    if (!this.getFallbackPool(target.pool_id)) {
+      throw new Error(`Model pool ${target.pool_id} not found`);
+    }
+
+    const created: RouteTarget = {
+      id: randomUUID(),
+      pool_id: target.pool_id,
+      provider: target.provider,
+      endpoint: target.endpoint,
+      weight: target.weight,
+      region: target.region,
+      is_active: target.is_active,
+      profile: target.profile ? this.deepClone(target.profile) : undefined
+    };
+
+    this.fallbackTargets.push(created);
+    return this.cloneTarget(created);
+  }
+
+  private updateFallbackTarget(id: string, patch: Partial<RouteTarget>): RouteTarget {
+    const idx = this.fallbackTargets.findIndex(target => target.id === id);
+    if (idx === -1) {
+      throw new Error('Route target not found');
+    }
+
+    const existing = this.fallbackTargets[idx];
+    const nextPoolId = patch.pool_id ?? existing.pool_id;
+    if (nextPoolId !== existing.pool_id && !this.getFallbackPool(nextPoolId)) {
+      throw new Error(`Model pool ${nextPoolId} not found`);
+    }
+
+    const updated: RouteTarget = {
+      ...existing,
+      pool_id: nextPoolId,
+      provider: patch.provider ?? existing.provider,
+      endpoint: patch.endpoint ?? existing.endpoint,
+      weight: patch.weight ?? existing.weight,
+      region: patch.region ?? existing.region,
+      is_active: patch.is_active ?? existing.is_active,
+      profile: patch.profile !== undefined ? this.deepClone(patch.profile) : existing.profile
+    };
+
+    this.fallbackTargets[idx] = updated;
+    return this.cloneTarget(updated);
+  }
+
+  private deleteFallbackTarget(id: string): void {
+    const idx = this.fallbackTargets.findIndex(target => target.id === id);
+    if (idx === -1) {
+      throw new Error('Route target not found');
+    }
+    this.fallbackTargets.splice(idx, 1);
+  }
+
+  private updateFallbackHealth(poolId: string, health: {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    errors?: string[];
+  }): void {
+    const pool = this.fallbackPools.find(item => item.pool_id === poolId);
+    if (!pool) {
+      throw new Error('Model pool not found');
+    }
+    pool.health = {
+      status: health.status,
+      errors: health.errors ? [...health.errors] : undefined,
+      last_check: new Date().toISOString()
+    };
+  }
+
+  private clonePools(pools: ModelPool[]): ModelPool[] {
+    return pools.map(pool => this.attachTargetsForPool(this.clonePool(pool)));
+  }
+
+  private attachTargetsForPool(pool: ModelPool): ModelPool {
+    return {
+      ...pool,
+      target_profiles: this.fallbackTargets
+        .filter(target => target.pool_id === pool.pool_id && target.is_active)
+        .map(target => this.cloneTarget(target))
+    };
+  }
+
+  private clonePool(pool: ModelPool): ModelPool {
+    return {
+      pool_id: pool.pool_id,
+      region: pool.region,
+      description: pool.description,
+      tags: this.deepClone(pool.tags),
+      targets: this.deepClone(pool.targets),
+      health: this.deepClone(pool.health),
+      target_profiles: pool.target_profiles?.map(target => this.cloneTarget(target))
+    };
+  }
+
+  private cloneTarget(target: RouteTarget): RouteTarget {
+    return {
+      id: target.id,
+      pool_id: target.pool_id,
+      provider: target.provider,
+      endpoint: target.endpoint,
+      weight: target.weight,
+      region: target.region,
+      is_active: target.is_active,
+      profile: target.profile ? this.deepClone(target.profile) : undefined
+    };
+  }
+
+  private deepClone<T>(value: T): T {
+    return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
+  }
+
+  private enableFallback(context: string, error: unknown): boolean {
+    if (!this.shouldFallback(error)) {
+      return false;
+    }
+    if (!this.fallbackMode) {
+      console.warn(`[RouteService] ${context} failed, switching to sample data fallback.`);
+      this.fallbackMode = true;
+    }
+    return true;
+  }
+
+  private shouldFallback(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const code = (error as { code?: string }).code;
+    if (code) {
+      const recoverable = new Set(['P1001', 'P1002', 'P1003', 'P1010', 'P1017', 'P2021', 'P2022']);
+      if (recoverable.has(code)) {
+        return true;
+      }
+    }
+
+    const name = (error as { name?: string }).name;
+    if (name && ['PrismaClientInitializationError', 'PrismaClientRustPanicError', 'PrismaClientUnknownRequestError'].includes(name)) {
+      return true;
+    }
+
+    const rawMessage = (error as { message?: string }).message;
+    const normalizedMessage = typeof rawMessage === 'string' ? rawMessage.toLowerCase() : '';
+    if (normalizedMessage.includes('failed to connect') || normalizedMessage.includes('econnrefused') || normalizedMessage.includes('does not exist')) {
+      return true;
+    }
+
+    return false;
   }
 
   buildRoutingDecision(
@@ -167,6 +512,7 @@ export class RouteService {
 
       if (target.profile) {
         const profile = target.profile;
+        const deployment = (profile.tags as any)?.deployment as string | undefined;
         const latencyScore = 1000 / Math.max(profile.performance.avg_latency_ms, 1);
         score += latencyScore;
         reasons.push(`Latency boost ${latencyScore.toFixed(1)}`);
@@ -187,7 +533,6 @@ export class RouteService {
         // Data sovereignty / residency hard requirement
         if (preferences?.required_data_residency) {
           const residency = profile.compliance?.data_residency || 'unknown';
-          const deployment = (profile.tags as any)?.deployment as string | undefined;
           const requireLocalAU = preferences.required_data_residency === 'AU_LOCAL';
           const matches = requireLocalAU
             ? (residency === 'AU' && (deployment === 'local' || deployment === 'onsite' || deployment === 'onprem'))
@@ -205,6 +550,17 @@ export class RouteService {
           if (preferences.preferred_data_residency.includes(residency)) {
             score += 75;
             reasons.push(`Preferred residency ${residency} +75`);
+          }
+        }
+
+        if (preferences?.requires_on_prem) {
+          const isOnPrem = deployment === 'onprem' || deployment === 'onsite' || deployment === 'local';
+          if (!isOnPrem) {
+            score -= 6000;
+            reasons.push('On-prem deployment required -6000');
+          } else {
+            score += 250;
+            reasons.push('On-prem deployment match +250');
           }
         }
 
@@ -319,6 +675,9 @@ export class RouteService {
         if (preferences?.requires_vision && !(hasCap('vision') || hasCap('multimodal'))) {
           score -= 900; reasons.push('Missing vision/multimodal -900');
         }
+      } else if (preferences?.requires_on_prem) {
+        score -= 6000;
+        reasons.push('On-prem requirement unmet (no profile metadata) -6000');
       }
 
       if (preferences?.prefer_region && target.region === preferences.prefer_region) {

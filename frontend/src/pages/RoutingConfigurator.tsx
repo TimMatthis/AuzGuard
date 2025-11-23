@@ -84,6 +84,7 @@ export function RoutingConfigurator() {
     model_strength: undefined,
     required_context_window_tokens: undefined,
     required_data_residency: undefined,
+    requires_on_prem: false,
     requires_json_mode: false,
     requires_function_calling: false,
     requires_streaming: false,
@@ -310,6 +311,15 @@ export function RoutingConfigurator() {
               <option value="SG">SG</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">Hard requirement; mismatches are disqualified.</p>
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-300">
+              <input
+                type="checkbox"
+                className="text-emerald-500 rounded border-gray-600 bg-gray-900"
+                checked={!!prefs.requires_on_prem}
+                onChange={(e) => setPrefs(prev => ({ ...prev, requires_on_prem: e.target.checked }))}
+              />
+              Require on-prem / local deployment (local Gemma, on-site GPUs)
+            </label>
           </div>
         </div>
 

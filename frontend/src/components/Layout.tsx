@@ -34,6 +34,7 @@ const NAV_LINKS: NavItem[] = [
   { type: 'section', name: 'Admin & Settings' },
   { type: 'link', name: 'Users', href: '/users', icon: 'USR' },
   { type: 'link', name: 'User Groups', href: '/user-groups', icon: 'GRP' },
+  { type: 'link', name: 'API Keys', href: '/api-keys', icon: 'KEY' },
   { type: 'link', name: 'Company Admin', href: '/company-admin', icon: 'CO' },
   { type: 'link', name: 'Settings', href: '/settings', icon: 'CFG' }
 ];
@@ -69,10 +70,9 @@ export function Layout({ children }: LayoutProps) {
           <div className="app-sidebar__brand">
             <Link to={user?.role === 'chat' ? '/chat-ui' : '/dashboard'}>
               {logoUrl ? (
-                <img src={logoUrl} alt={`${brandName} logo`} style={{ maxHeight: 28, marginBottom: 6 }} />
+                <img src={logoUrl} alt={`${brandName} logo`} style={{ width: '0.75cm', height: '0.75cm', objectFit: 'contain', marginBottom: 6 }} />
               ) : null}
-              <span>{brandName}</span>
-              <small>Sovereign AI Gateway</small>
+              <span>AuzGuard{brandName !== 'AuzGuard' ? ` - ${brandName}` : ''}</span>
             </Link>
           </div>
 
@@ -82,6 +82,17 @@ export function Layout({ children }: LayoutProps) {
                 <div key={`section-${item.name}-${idx}`} className="app-nav__section">
                   <span className="app-nav__section-label">{item.name}</span>
                 </div>
+              ) : (item.href === '/chat-ui' || item.href === '/chat') ? (
+                <a
+                  key={item.name}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="app-nav__link"
+                >
+                  <span className="app-nav__icon" aria-hidden>{item.icon}</span>
+                  <span>{item.name}</span>
+                </a>
               ) : (
                 <Link
                   key={item.name}

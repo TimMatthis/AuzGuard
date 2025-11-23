@@ -3,16 +3,18 @@ import { BrandingService, UpdateBrandingInput } from '../services/branding';
 import { AuthService } from '../services/auth';
 import { TenantConnectionManager } from '../services/tenantConnectionManager';
 import { UserRole } from '../types';
+import type { PrismaClient as MasterPrismaClient } from '../../node_modules/.prisma/client-master';
 
 interface BrandingRoutesOptions {
   authService: AuthService;
   connectionManager: TenantConnectionManager;
+  masterPrisma: MasterPrismaClient;
 }
 
 const extractUser = (request: FastifyRequest) => request.user as { id: string; email: string; role: UserRole; tenant_slug?: string };
 
 export async function brandingRoutes(fastify: FastifyInstance, options: BrandingRoutesOptions) {
-  const { connectionManager, authService } = options;
+  const { connectionManager, authService, masterPrisma } = options;
 
   // Public branding endpoint (no auth required)
   fastify.get('/branding', async (request, reply) => {
@@ -114,7 +116,7 @@ export async function brandingRoutes(fastify: FastifyInstance, options: Branding
       }
 
       const tenantPrisma = await connectionManager.getTenantConnection(user.tenant_slug!);
-      const brandingService = new BrandingService(tenantPrisma);
+      const brandingService = new BrandingService(tenantPrisma, masterPrisma, user.tenant_slug);
       
       const branding = await brandingService.updateBranding(request.body);
       return branding;

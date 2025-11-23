@@ -4,7 +4,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { Client } from 'pg';
 import { PrismaClient as MasterPrismaClient } from '../../node_modules/.prisma/client-master';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient as TenantPrismaClient, Prisma as TenantPrisma } from '@prisma/client';
 
 const execAsync = promisify(exec);
 
@@ -52,6 +52,15 @@ export class TenantProvisioningService {
       throw new Error('A company with this identifier already exists');
     }
 
+    // Enforce unique admin email across all companies
+    const existingAdmin = await this.masterPrisma.tenant.findFirst({
+      where: { admin_email: input.admin_email }
+    });
+
+    if (existingAdmin) {
+      throw new Error('An account with this email already manages another company. Please use a different email or sign in.');
+    }
+
     // Generate database name
     const dbName = `auzguard_tenant_${input.slug.replace(/-/g, '_')}`;
 
@@ -79,6 +88,12 @@ export class TenantProvisioningService {
           status: 'active',
           last_active_at: new Date()
         }
+      }).catch((e: any) => {
+        // Convert unique constraint errors to friendly message
+        if (e?.code === 'P2002' || /unique/i.test(String(e?.message || ''))) {
+          throw new Error('An account with this email already manages another company. Please use a different email or sign in.');
+        }
+        throw e;
       });
 
       // 5. Create initial admin user in tenant database
@@ -103,12 +118,16 @@ export class TenantProvisioningService {
       });
 
       return { tenant, initialUser };
-    } catch (error) {
+    } catch (error: any) {
       // Rollback: try to drop the database if it was created
       try {
         await this.dropDatabase(dbName);
       } catch (cleanupError) {
         console.error('Failed to cleanup database after error:', cleanupError);
+      }
+      // Surface friendly message if it was a unique violation
+      if (error?.code === 'P2002' || /unique/i.test(String(error?.message || ''))) {
+        throw new Error('An account with this email already manages another company. Please use a different email or sign in.');
       }
       throw error;
     }
@@ -222,7 +241,7 @@ export class TenantProvisioningService {
     name?: string
   ): Promise<any> {
     // Connect to tenant database and create admin user
-    const tenantPrisma = new PrismaClient({
+    const tenantPrisma = new TenantPrismaClient({
       datasources: {
         db: {
           url: tenantDbUrl
@@ -243,28 +262,35 @@ export class TenantProvisioningService {
       const verification_token_expires = new Date();
       verification_token_expires.setHours(verification_token_expires.getHours() + 24);
 
+      const userCreateData: Record<string, any> = {
+        email,
+        password_hash: passwordHash,
+        role: 'admin',
+        is_active: true,
+        email_verified: false,
+        verification_token: verificationToken,
+        verification_token_expires
+      };
+
+      if (name) {
+        userCreateData.name = name;
+      }
+
       const user = await tenantPrisma.user.create({
-        data: {
-          email,
-          password_hash: passwordHash,
-          name,
-          role: 'admin',
-          is_active: true,
-          email_verified: false,
-          verification_token: verificationToken,
-          verification_token_expires
-        }
+        data: userCreateData as TenantPrisma.UserUncheckedCreateInput
       });
 
       await tenantPrisma.$disconnect();
       
+      const tenantUser = user as Record<string, any>;
+
       return {
         id: user.id,
         email: user.email,
         role: user.role,
         created_at: user.created_at.toISOString(),
-        email_verified: user.email_verified,
-        verification_token: user.verification_token
+        email_verified: tenantUser.email_verified ?? false,
+        verification_token: tenantUser.verification_token ?? verificationToken
       };
     } catch (error) {
       await tenantPrisma.$disconnect();
@@ -296,4 +322,3 @@ export class TenantProvisioningService {
     };
   }
 }
-

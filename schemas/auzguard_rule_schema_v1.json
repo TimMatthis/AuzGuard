@@ -88,6 +88,11 @@
       "enum": ["ALLOW", "BLOCK", "ROUTE", "REQUIRE_OVERRIDE", "WARN_ROUTE"],
       "description": "Action to take when rule matches"
     },
+    "residency_requirement": {
+      "type": "string",
+      "enum": ["AUTO", "AU_ONSHORE", "ON_PREMISE"],
+      "description": "Residency outcome enforced when this rule matches"
+    },
     "route_to": {
       "type": "string",
       "description": "Model pool to route to (required if effect is ROUTE or WARN_ROUTE)"

@@ -7,6 +7,7 @@ import { EvaluationService } from '../services/evaluation';
 import { PolicyService } from '../services/policy';
 import { AuditService } from '../services/audit';
 import { ModelGardenService } from '../services/modelGarden';
+import { TenantConnectionManager } from '../services/tenantConnectionManager';
 import { ModelPool, RouteTarget, RoutingRequest, RoutingResponse, UserRole, RoutingPreference } from '../types';
 import { PreprocessorService } from '../services/preprocessor';
 
@@ -22,13 +23,14 @@ interface RouteRouteOptions {
   policyService: PolicyService;
   auditService: AuditService;
   modelGardenService: ModelGardenService;
+  connectionManager: TenantConnectionManager;
   preprocessorService?: PreprocessorService;
 }
 
 const extractUser = (request: FastifyRequest) => request.user as { id?: string; role: UserRole };
 
 export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteOptions) {
-  const { routeService, authService, evaluationService, policyService, auditService, modelGardenService, preprocessorService } = options;
+  const { routeService, authService, evaluationService, policyService, auditService, modelGardenService, connectionManager, preprocessorService } = options;
 
   // Authentication middleware
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -274,8 +276,20 @@ export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteO
       const isExecutable = ['ALLOW', 'ROUTE', 'WARN_ROUTE'].includes(evaluation.decision);
 
       if (isExecutable) {
-        const preferences = request.body.preferences ?? {};
-        const preferencePoolId = (preferences as Record<string, unknown>)?.['pool_id'] as string | undefined;
+      const preferences: RoutingPreference = { ...(request.body.preferences ?? {}) };
+      const preferencePoolId = (preferences as Record<string, unknown>)?.['pool_id'] as string | undefined;
+      const residencyRequirement = evaluation.residency_requirement;
+      if (residencyRequirement === 'AU_ONSHORE') {
+        preferences.required_data_residency = 'AU_LOCAL';
+        if (preferences.preferred_data_residency?.length) {
+          preferences.preferred_data_residency = preferences.preferred_data_residency.filter(
+            residency => residency === 'AU' || residency === 'AU_LOCAL'
+          );
+        }
+      } else if (residencyRequirement === 'ON_PREMISE') {
+        preferences.requires_on_prem = true;
+        preferences.required_data_residency = preferences.required_data_residency || 'AU_LOCAL';
+      }
         let poolId = evaluation.route_to || preferencePoolId || process.env.DEFAULT_MODEL_POOL || undefined;
 
         if (!poolId) {
@@ -297,12 +311,36 @@ export async function routeRoutes(fastify: FastifyInstance, options: RouteRouteO
           return reply.status(400).send({ error: { code: 'ROUTING_ERROR', message: `No active targets available for pool ${poolId}` } });
         }
 
-        const decision = routeService.buildRoutingDecision(pool, targets, request.body.preferences);
+        const decision = routeService.buildRoutingDecision(pool, targets, preferences);
         routeDecision = decision;
 
         const selectedCandidate = decision.candidates.find(candidate => candidate.selected) || decision.candidates[0];
 
         if (selectedCandidate) {
+          // Try to get tenant context for API keys
+          let tenantSlug: string | undefined;
+          try {
+            const token = request.headers.authorization?.replace('Bearer ', '');
+            if (token) {
+              const user = authService.getUserFromToken(token);
+              tenantSlug = user.tenant_slug;
+            }
+          } catch (error) {
+            // If we can't get tenant context, continue with environment variables
+            console.warn('Could not extract tenant context for API keys:', error);
+          }
+
+          // Initialize tenant-specific connectors if tenant context is available
+          if (tenantSlug) {
+            try {
+              const tenantPrisma = await connectionManager.getTenantConnection(tenantSlug);
+              await modelGardenService.initializeTenantConnectors(tenantPrisma);
+            } catch (error) {
+              console.warn('Could not initialize tenant connectors:', error);
+              // Continue with default connectors
+            }
+          }
+
           const outcome = await modelGardenService.invoke({
             policyId: request.body.policy_id,
             decision: evaluation.decision,

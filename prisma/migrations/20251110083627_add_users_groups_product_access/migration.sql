@@ -77,3 +77,11 @@ ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_route_profile_id_fkey" FOR
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_product_access_group_id_fkey" FOREIGN KEY ("product_access_group_id") REFERENCES "product_access_groups"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 
+
+
+
+
+
+
+
+

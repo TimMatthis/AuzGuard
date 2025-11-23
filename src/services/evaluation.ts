@@ -8,7 +8,9 @@ import {
   SimulationResult,
   OverrideRequest,
   OverrideResponse,
-  Effect
+  Effect,
+  RuleInsight,
+  ResidencyRequirement
 } from '../types';
 
 export class EvaluationService {
@@ -50,6 +52,13 @@ export class EvaluationService {
       matched_rule: evaluation.matched_rule,
       audit_log_id: auditEntry.id
     };
+
+    result.residency_requirement = this.resolveResidencyRequirement(policy, evaluation.matched_rule);
+
+    const ruleInsights = this.extractRuleInsights(request, evaluation.matched_rule);
+    if (ruleInsights.length > 0) {
+      result.rule_insights = ruleInsights;
+    }
 
     // Add override requirements if needed
     if (evaluation.decision === 'REQUIRE_OVERRIDE') {
@@ -150,6 +159,39 @@ export class EvaluationService {
   private extractRouteTarget(rules: any[], matchedRuleId?: string): string | undefined {
     const rule = rules.find(r => r.rule_id === matchedRuleId);
     return rule?.route_to;
+  }
+
+  private resolveResidencyRequirement(
+    policy: { residency_override?: ResidencyRequirement; residency_requirement_default?: ResidencyRequirement; rules: Array<{ rule_id: string; residency_requirement?: ResidencyRequirement }> },
+    matchedRuleId?: string
+  ): ResidencyRequirement {
+    if (policy.residency_override && policy.residency_override !== 'AUTO') {
+      return policy.residency_override;
+    }
+
+    const rule = policy.rules.find(r => r.rule_id === matchedRuleId);
+    if (rule?.residency_requirement && rule.residency_requirement !== 'AUTO') {
+      return rule.residency_requirement;
+    }
+
+    return policy.residency_requirement_default || 'AUTO';
+  }
+
+  private extractRuleInsights(
+    request: Record<string, unknown>,
+    matchedRuleId?: string
+  ): RuleInsight[] {
+    const insights = Array.isArray((request as any)?.__rule_insights)
+      ? ((request as any).__rule_insights as RuleInsight[])
+      : [];
+
+    if (!insights.length) return [];
+
+    return insights.map(insight =>
+      matchedRuleId && insight.rule_id === matchedRuleId
+        ? { ...insight, matched: true }
+        : { ...insight, matched: insight.matched === true }
+    );
   }
 }
 

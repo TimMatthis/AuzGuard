@@ -1,29 +1,52 @@
 // Policy service for CRUD operations and validation
 
 import { PrismaClient, Prisma } from '@prisma/client';
+import basePolicyJson from '../../schemas/auzguard_ruleset_au_base_v1.json';
 import { Policy, Rule, ValidationError } from '../types';
 import { PreprocessorService } from './preprocessor';
 
 export class PolicyService {
+  private readonly samplePolicies: Policy[];
+
   constructor(
     private prisma: PrismaClient,
     private validator: any
-  ) {}
+  ) {
+    this.samplePolicies = [this.normalizeSamplePolicy(basePolicyJson as Policy)];
+  }
 
   async getAllPolicies(): Promise<Policy[]> {
-    const policies = await this.prisma.policy.findMany({
-      orderBy: { updated_at: 'desc' }
-    });
+    try {
+      const policies = await this.prisma.policy.findMany({
+        orderBy: { updated_at: 'desc' }
+      });
 
-    return policies.map((policy) => this.mapDbPolicyToPolicy(policy));
+      if (!policies.length) {
+        return this.cloneSamplePolicies();
+      }
+
+      return policies.map((policy) => this.mapDbPolicyToPolicy(policy));
+    } catch (error) {
+      console.warn('[PolicyService] Falling back to bundled sample policies due to database error:', error);
+      return this.cloneSamplePolicies();
+    }
   }
 
   async getPolicyById(policyId: string): Promise<Policy | null> {
-    const policy = await this.prisma.policy.findUnique({
-      where: { policy_id: policyId }
-    });
+    try {
+      const policy = await this.prisma.policy.findUnique({
+        where: { policy_id: policyId }
+      });
 
-    return policy ? this.mapDbPolicyToPolicy(policy) : null;
+      if (policy) {
+        return this.mapDbPolicyToPolicy(policy);
+      }
+    } catch (error) {
+      console.warn('[PolicyService] Database lookup failed; checking sample policies instead.', error);
+    }
+
+    const fallback = this.samplePolicies.find(p => p.policy_id === policyId);
+    return fallback ? this.clonePolicy(fallback) : null;
   }
 
   async createPolicy(policy: Policy, publishedBy: string): Promise<Policy> {
@@ -46,6 +69,8 @@ export class PolicyService {
         jurisdiction: policy.jurisdiction,
         evaluation_strategy: policy.evaluation_strategy as unknown as Prisma.InputJsonValue,
         rules: this.prepareRulesForPersistence(policy.rules),
+        residency_requirement_default: policy.residency_requirement_default,
+        residency_override: policy.residency_override,
         published_by: publishedBy
       }
     });
@@ -72,6 +97,8 @@ export class PolicyService {
         jurisdiction: policy.jurisdiction,
         evaluation_strategy: policy.evaluation_strategy as unknown as Prisma.InputJsonValue,
         rules: this.prepareRulesForPersistence(policy.rules),
+        residency_requirement_default: policy.residency_requirement_default,
+        residency_override: policy.residency_override,
         published_by: publishedBy
       }
     });
@@ -181,6 +208,8 @@ export class PolicyService {
       title: dbPolicy.title,
       jurisdiction: dbPolicy.jurisdiction,
       evaluation_strategy: dbPolicy.evaluation_strategy,
+      residency_requirement_default: dbPolicy.residency_requirement_default || undefined,
+      residency_override: dbPolicy.residency_override || undefined,
       rules: normalizedRules
     };
   }
@@ -203,5 +232,28 @@ export class PolicyService {
       enabled: rule.enabled === false ? false : true,
       metadata: rule.metadata || undefined
     };
+  }
+
+  private normalizeSamplePolicy(raw: Policy): Policy {
+    const policy: Policy = {
+      policy_id: raw.policy_id || 'AuzGuard_AU_Base_v1',
+      version: raw.version || 'v1.0.0',
+      title: raw.title || 'Sample Policy',
+      jurisdiction: raw.jurisdiction || 'AU',
+      evaluation_strategy: raw.evaluation_strategy,
+      residency_requirement_default: raw.residency_requirement_default || 'AUTO',
+      residency_override: raw.residency_override || undefined,
+      rules: Array.isArray(raw.rules) ? raw.rules.map(rule => this.normalizeRule(rule)) : []
+    };
+
+    return policy;
+  }
+
+  private cloneSamplePolicies(): Policy[] {
+    return this.samplePolicies.map(policy => this.clonePolicy(policy));
+  }
+
+  private clonePolicy(policy: Policy): Policy {
+    return JSON.parse(JSON.stringify(policy)) as Policy;
   }
 }

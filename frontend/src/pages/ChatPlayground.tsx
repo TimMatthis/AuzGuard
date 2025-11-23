@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { RoutingResponse, Policy, Rule, Effect } from '../types';
+import { RoutingResponse, Policy, Rule, Effect, UserGroup } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ConversationMessage {
   id: string;
@@ -18,14 +19,56 @@ const initialContext = `{
   "request_type": "chat_completion"
 }`;
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (!error) return fallback;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object') {
+    const payload = error as { message?: string; code?: string; error?: { message?: string } };
+    if (payload.message) return payload.message;
+    if (payload.error?.message) return payload.error.message;
+    if (payload.code) return `Error ${payload.code}`;
+  }
+  return fallback;
+};
+
 export function ChatPlayground() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  // Fetch user's group to get assigned policies
+  const { data: userGroup } = useQuery<UserGroup>({
+    queryKey: ['userGroup', user?.user_group_id],
+    queryFn: () => user?.user_group_id ? apiClient.getUserGroup(user.user_group_id) : Promise.resolve(null),
+    enabled: !!user?.user_group_id,
+  });
+
   const { data: policies } = useQuery({
     queryKey: ['policies'],
     queryFn: () => apiClient.getPolicies()
   });
 
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string>('AuzGuard_AU_Base_v1');
+  // Filter policies based on user's group permissions
+  const availablePolicies = useMemo(() => {
+    if (isAdmin || !userGroup) return policies || [];
+    if (userGroup.allowed_policies && userGroup.allowed_policies.length > 0) {
+      return (policies || []).filter(p => userGroup.allowed_policies?.includes(p.policy_id));
+    }
+    return policies || [];
+  }, [policies, userGroup, isAdmin]);
+
+  // Auto-select default policy from user's group or first available
+  const defaultPolicyId = userGroup?.default_policy_id || availablePolicies[0]?.policy_id || 'AuzGuard_AU_Base_v1';
+
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>(defaultPolicyId);
+
+  // Update policy when default changes
+  useEffect(() => {
+    if (defaultPolicyId && !isAdmin) {
+      setSelectedPolicyId(defaultPolicyId);
+    }
+  }, [defaultPolicyId, isAdmin]);
   const [orgId, setOrgId] = useState<string>('demo-org');
   const [actorId, setActorId] = useState<string>('developer-123');
   const [contextJson, setContextJson] = useState<string>(initialContext);
@@ -86,7 +129,7 @@ export function ChatPlayground() {
       appendRouterMessage(result);
     },
     onError: (err) => {
-      const message = err instanceof Error ? err.message : 'Failed to execute router';
+      const message = getErrorMessage(err, 'Failed to execute router');
       setErrorMessage(message);
       appendRouterMessage(null, message);
     }
@@ -185,8 +228,8 @@ export function ChatPlayground() {
       const poolB = b.route_decision?.pool_id || '-';
       if (poolA !== poolB) diffs.push(`Pool: ${poolA} vs ${poolB}`);
       setCompareNote(diffs.length ? diffs.join(' • ') : 'No differences detected.');
-    } catch (e: any) {
-      setCompareNote(e?.message || 'Failed to run A/B compare.');
+    } catch (e) {
+      setCompareNote(getErrorMessage(e, 'Failed to run A/B compare.'));
     }
   };
 
@@ -203,39 +246,45 @@ export function ChatPlayground() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <section className="xl:col-span-2 bg-gray-800 border border-gray-800 rounded-lg flex flex-col">
           <div className="border-b border-gray-700 px-6 py-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Policy</label>
-              <select
-                value={selectedPolicyId}
-                onChange={(event) => setSelectedPolicyId(event.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                data-testid="policy-select"
-              >
-                {policies?.map(policy => (
-                  <option key={policy.policy_id} value={policy.policy_id}>
-                    {policy.title} ({policy.policy_id})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Org ID</label>
-              <input
-                value={orgId}
-                onChange={(event) => setOrgId(event.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                data-testid="org-input"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Actor ID</label>
-              <input
-                value={actorId}
-                onChange={(event) => setActorId(event.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                data-testid="actor-input"
-              />
-            </div>
+            {isAdmin && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1">Policy (Admin Only)</label>
+                <select
+                  value={selectedPolicyId}
+                  onChange={(event) => setSelectedPolicyId(event.target.value)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  data-testid="policy-select"
+                >
+                  {availablePolicies?.map(policy => (
+                    <option key={policy.policy_id} value={policy.policy_id}>
+                      {policy.title} ({policy.policy_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {isAdmin && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Org ID (Admin Only)</label>
+                  <input
+                    value={orgId}
+                    onChange={(event) => setOrgId(event.target.value)}
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    data-testid="org-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Actor ID (Admin Only)</label>
+                  <input
+                    value={actorId}
+                    onChange={(event) => setActorId(event.target.value)}
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    data-testid="actor-input"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="px-6 py-4 border-b border-gray-700">

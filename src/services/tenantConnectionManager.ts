@@ -1,10 +1,10 @@
 // Tenant connection manager
 // Manages dynamic connections to tenant databases with pooling
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient as TenantPrismaClient } from '@prisma/client';
 import { PrismaClient as MasterPrismaClient } from '../../node_modules/.prisma/client-master';
 
 export class TenantConnectionManager {
-  private connections: Map<string, PrismaClient> = new Map();
+  private connections: Map<string, TenantPrismaClient> = new Map();
   private masterPrisma: MasterPrismaClient;
   private maxConnections: number = 50; // Max concurrent tenant connections
 
@@ -15,7 +15,7 @@ export class TenantConnectionManager {
   /**
    * Get a connection to a tenant database by slug
    */
-  async getTenantConnection(tenantSlug: string): Promise<PrismaClient> {
+  async getTenantConnection(tenantSlug: string): Promise<TenantPrismaClient> {
     // Check if we already have a connection
     const existing = this.connections.get(tenantSlug);
     if (existing) {
@@ -114,8 +114,8 @@ export class TenantConnectionManager {
   /**
    * Create a new connection to a tenant database
    */
-  private async createConnection(databaseUrl: string): Promise<PrismaClient> {
-    const prisma = new PrismaClient({
+  private async createConnection(databaseUrl: string): Promise<TenantPrismaClient> {
+    const prisma = new TenantPrismaClient({
       datasources: {
         db: {
           url: databaseUrl

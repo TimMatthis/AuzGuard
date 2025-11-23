@@ -35,6 +35,9 @@ import { RoutingProfilesService } from './services/routingProfiles';
 import { brandingRoutes } from './routes/branding';
 import { userRoutes } from './routes/users';
 import { tenantRoutes } from './routes/tenants';
+import { chatRoutes } from './routes/chat';
+import { apiKeyRoutes } from './routes/api-keys';
+import { sampleModelPools, sampleRouteTargets } from './data/sampleRoutingData';
 
 // Load JSON schemas
 const ruleSchema: any = require('../schemas/auzguard_rule_schema_v1.json');
@@ -64,6 +67,16 @@ const policySchema: any = {
       },
       required: ['order', 'conflict_resolution', 'default_effect']
     },
+    residency_requirement_default: {
+      type: 'string',
+      enum: ['AUTO', 'AU_ONSHORE', 'ON_PREMISE'],
+      description: 'Default residency outcome applied when a rule does not declare one'
+    },
+    residency_override: {
+      type: 'string',
+      enum: ['AUTO', 'AU_ONSHORE', 'ON_PREMISE'],
+      description: 'Global override that forces every evaluation to honour this residency outcome'
+    },
     rules: {
       type: 'array',
       items: ruleSchema,
@@ -75,8 +88,10 @@ const policySchema: any = {
 
 const policyValidator = ajv.compile(policySchema);
 
-const userService = new UserService(prisma);
-const userGroupService = new UserGroupService(prisma);
+// Note: UserService/UserGroupService now require TenantPrismaClient
+// For the main database, we cast it (schemas are compatible after org_id removal)
+const userService = new UserService(prisma as any);
+const userGroupService = new UserGroupService(prisma as any);
 const authService = new AuthService(userService);
 const tenantConnectionManager = new TenantConnectionManager(masterPrisma);
 const tenantProvisioningService = new TenantProvisioningService(masterPrisma);
@@ -176,6 +191,7 @@ async function registerPluginsAndRoutes() {
     policyService,
     auditService,
     modelGardenService,
+    connectionManager: tenantConnectionManager,
     preprocessorService
   });
 
@@ -196,7 +212,8 @@ async function registerPluginsAndRoutes() {
   await fastify.register(brandingRoutes, { 
     prefix: '/api',
     authService,
-    connectionManager: tenantConnectionManager
+    connectionManager: tenantConnectionManager,
+    masterPrisma
   });
 
   await fastify.register(tenantRoutes, {
@@ -210,6 +227,19 @@ async function registerPluginsAndRoutes() {
     prefix: '/api',
     userService,
     userGroupService,
+    authService,
+    connectionManager: tenantConnectionManager
+  });
+
+  await fastify.register(apiKeyRoutes, {
+    prefix: '/api',
+    authService,
+    prisma,
+    routeService
+  });
+
+  await fastify.register(chatRoutes, {
+    prefix: '/api',
     authService,
     connectionManager: tenantConnectionManager
   });
@@ -321,45 +351,21 @@ async function seedInitialData() {
           jurisdiction: baseRuleset.jurisdiction,
           evaluation_strategy: baseRuleset.evaluation_strategy as Prisma.InputJsonValue,
           rules: baseRuleset.rules as Prisma.InputJsonValue,
+          residency_requirement_default: baseRuleset.residency_requirement_default || 'AUTO',
+          residency_override: baseRuleset.residency_override,
           published_by: 'system'
         }
       });
 
       await prisma.modelPool.createMany({
-        data: [
-          {
-            pool_id: 'onshore_default_pool',
-            region: 'AU',
-            description: 'Default Australian onshore pool optimised for compliance-first workloads',
-            tags: { region: 'AU', persistence: true, default_pool: true } as Prisma.InputJsonValue,
-            targets: [
-              { provider: 'openai', endpoint: 'gpt-4o-mini', weight: 60 },
-              { provider: 'google_generative_ai', endpoint: 'gemini-1.5-pro', weight: 25 },
-              { provider: 'ollama', endpoint: 'llama3.1', weight: 15 }
-            ] as Prisma.InputJsonValue,
-            health: { status: 'healthy', last_check: new Date().toISOString() } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'sandbox_no_persist_pool',
-            region: 'AU',
-            description: 'Local developer sandbox pool (no persistence)',
-            tags: { region: 'AU', persistence: false, sandbox: true } as Prisma.InputJsonValue,
-            targets: [
-              { provider: 'ollama', endpoint: 'phi3-mini', weight: 100 }
-            ] as Prisma.InputJsonValue,
-            health: { status: 'healthy', last_check: new Date().toISOString() } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'bias_audited_pool',
-            region: 'AU',
-            description: 'Bias-audited pool for sensitive and high-risk AI workloads',
-            tags: { region: 'AU', bias_audited: true, compliance: 'high' } as Prisma.InputJsonValue,
-            targets: [
-              { provider: 'openai', endpoint: 'gpt-4o', weight: 100 }
-            ] as Prisma.InputJsonValue,
-            health: { status: 'healthy', last_check: new Date().toISOString() } as Prisma.InputJsonValue
-          }
-        ]
+        data: sampleModelPools.map(pool => ({
+          pool_id: pool.pool_id,
+          region: pool.region,
+          description: pool.description,
+          tags: pool.tags as Prisma.InputJsonValue,
+          targets: pool.targets as Prisma.InputJsonValue,
+          health: pool.health as Prisma.InputJsonValue
+        }))
       });
     }
 
@@ -367,189 +373,16 @@ async function seedInitialData() {
       fastify.log.info('Seeding initial route target profiles...');
 
       await prisma.routeTarget.createMany({
-        data: [
-          {
-            pool_id: 'onshore_default_pool',
-            provider: 'openai',
-            endpoint: 'gpt-4o-mini',
-            weight: 60,
-            region: 'AU',
-            is_active: true,
-            profile: {
-              profile_id: 'openai_gpt4omini_au',
-              provider: 'openai',
-              endpoint: 'gpt-4o-mini',
-              capabilities: ['gpt-4o-mini', 'json-mode', 'vision-lite'],
-              supported_data_classes: ['cdr_data', 'general'],
-              compliance: {
-                data_residency: 'AU',
-                certifications: ['IRAP'],
-                notes: 'OpenAI regional deployment hosted in AU sovereign region.'
-              },
-              performance: {
-                avg_latency_ms: 160,
-                p95_latency_ms: 310,
-                availability: 0.995,
-                throughput_tps: 65
-              },
-              cost: {
-                currency: 'AUD',
-                per_1k_tokens: 0.011
-              },
-              last_benchmarked: new Date().toISOString(),
-              tags: {
-                default_model: 'gpt-4o-mini',
-                task_types: ['chat_completion', 'analysis'],
-                cost_tier: 'balanced',
-                irap: true
-              }
-            } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'onshore_default_pool',
-            provider: 'google_generative_ai',
-            endpoint: 'gemini-1.5-pro',
-            weight: 25,
-            region: 'AU',
-            is_active: true,
-            profile: {
-              profile_id: 'gemini_15_pro_au',
-              provider: 'google_generative_ai',
-              endpoint: 'gemini-1.5-pro',
-              capabilities: ['gemini-1.5-pro', 'multimodal'],
-              supported_data_classes: ['cdr_data', 'general'],
-              compliance: {
-                data_residency: 'AU',
-                certifications: ['IRAP', 'ISO27001']
-              },
-              performance: {
-                avg_latency_ms: 210,
-                p95_latency_ms: 340,
-                availability: 0.992,
-                throughput_tps: 50
-              },
-              cost: {
-                currency: 'AUD',
-                per_1k_tokens: 0.009
-              },
-              last_benchmarked: new Date().toISOString(),
-              tags: {
-                default_model: 'gemini-1.5-pro',
-                task_types: ['reasoning', 'multimodal'],
-                cost_tier: 'value'
-              }
-            } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'onshore_default_pool',
-            provider: 'ollama',
-            endpoint: 'llama3.1',
-            weight: 15,
-            region: 'AU',
-            is_active: true,
-            profile: {
-              profile_id: 'ollama_llama31_local',
-              provider: 'ollama',
-              endpoint: 'llama3.1',
-              capabilities: ['chat', 'function-calling'],
-              supported_data_classes: ['general'],
-              compliance: {
-                data_residency: 'AU',
-                notes: 'Self-hosted deployment kept within sovereign network boundary.'
-              },
-              performance: {
-                avg_latency_ms: 240,
-                p95_latency_ms: 420,
-                availability: 0.985,
-                throughput_tps: 25
-              },
-              cost: {
-                currency: 'AUD',
-                per_1k_tokens: 0.003
-              },
-              last_benchmarked: new Date().toISOString(),
-              tags: {
-                default_model: 'llama3.1:8b',
-                task_types: ['chat_completion', 'development'],
-                deployment: 'local',
-                cost_tier: 'economy'
-              }
-            } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'sandbox_no_persist_pool',
-            provider: 'ollama',
-            endpoint: 'phi3-mini',
-            weight: 100,
-            region: 'AU',
-            is_active: true,
-            profile: {
-              profile_id: 'ollama_phi3_sandbox',
-              provider: 'ollama',
-              endpoint: 'phi3-mini',
-              capabilities: ['chat', 'code'],
-              supported_data_classes: ['test_data'],
-              compliance: {
-                data_residency: 'AU',
-                notes: 'Sandbox environment with ephemeral local storage.'
-              },
-              performance: {
-                avg_latency_ms: 260,
-                p95_latency_ms: 430,
-                availability: 0.98,
-                throughput_tps: 20
-              },
-              cost: {
-                currency: 'AUD',
-                per_1k_tokens: 0.0
-              },
-              last_benchmarked: new Date().toISOString(),
-              tags: {
-                default_model: 'phi3:mini',
-                sandbox: true,
-                persistence: false,
-                task_types: ['development', 'testing']
-              }
-            } as Prisma.InputJsonValue
-          },
-          {
-            pool_id: 'bias_audited_pool',
-            provider: 'openai',
-            endpoint: 'gpt-4o',
-            weight: 100,
-            region: 'AU',
-            is_active: true,
-            profile: {
-              profile_id: 'openai_gpt4o_audited',
-              provider: 'openai',
-              endpoint: 'gpt-4o',
-              capabilities: ['gpt-4o', 'guardrails'],
-              supported_data_classes: ['sensitive_personal', 'demographic_data'],
-              compliance: {
-                data_residency: 'AU',
-                certifications: ['IRAP'],
-                notes: 'Independent bias auditing completed Q2 2025 with quarterly refresh cadence.'
-              },
-              performance: {
-                avg_latency_ms: 200,
-                p95_latency_ms: 330,
-                availability: 0.994,
-                throughput_tps: 35
-              },
-              cost: {
-                currency: 'AUD',
-                per_1k_tokens: 0.018
-              },
-              last_benchmarked: new Date().toISOString(),
-              tags: {
-                default_model: 'gpt-4o',
-                task_types: ['high_risk', 'analysis'],
-                bias_audited: true,
-                cost_tier: 'premium'
-              }
-            } as Prisma.InputJsonValue
-          }
-        ]
+        data: sampleRouteTargets.map(target => ({
+          id: target.id,
+          pool_id: target.pool_id,
+          provider: target.provider,
+          endpoint: target.endpoint,
+          weight: target.weight,
+          region: target.region,
+          is_active: target.is_active,
+          profile: (target.profile as unknown as Prisma.InputJsonValue) ?? null
+        }))
       });
     }
 
@@ -573,6 +406,20 @@ async function ensureBaseRulesPresent() {
 
     const existing = await prisma.policy.findUnique({ where: { policy_id: policyId } });
     if (!existing) return; // Created earlier or unavailable; nothing to merge
+
+    const residencyPatch: Record<string, any> = {};
+    if (!existing.residency_requirement_default && baseRuleset.residency_requirement_default) {
+      residencyPatch.residency_requirement_default = baseRuleset.residency_requirement_default;
+    }
+    if ((existing.residency_override ?? undefined) !== (baseRuleset.residency_override ?? undefined)) {
+      residencyPatch.residency_override = baseRuleset.residency_override ?? null;
+    }
+    if (Object.keys(residencyPatch).length > 0) {
+      await prisma.policy.update({
+        where: { policy_id: policyId },
+        data: residencyPatch
+      });
+    }
 
     const currentRules: any[] = Array.isArray((existing as any).rules) ? (existing as any).rules : [];
     const desiredRules: any[] = Array.isArray(baseRuleset.rules) ? baseRuleset.rules : [];

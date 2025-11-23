@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { PageLayout, Panel } from '../components/PageLayout';
+import { useBranding } from '../contexts/BrandingContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export function CompanyAdmin() {
   const queryClient = useQueryClient();
+  const { refreshBranding } = useBranding();
+  const { token } = useAuth();
   
   // Fetch current branding
   const { data: branding, isLoading } = useQuery({ 
-    queryKey: ['tenantBranding'], 
+    queryKey: ['tenantBranding', token], 
     queryFn: () => apiClient.getTenantBranding() 
   });
 
@@ -18,6 +22,10 @@ export function CompanyAdmin() {
       apiClient.updateTenantBranding(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenantBranding'] });
+      // Refresh the header branding
+      if (refreshBranding) {
+        refreshBranding();
+      }
       setIsEditing(false);
     }
   });

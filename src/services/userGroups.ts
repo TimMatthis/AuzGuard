@@ -1,5 +1,5 @@
 // User group and product access management service
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient as TenantPrismaClient } from '@prisma/client';
 import { UserGroup } from '../types';
 
 export interface CreateUserGroupInput {
@@ -74,7 +74,7 @@ export interface ProductAccessGroupWithCount {
 }
 
 export class UserGroupService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: TenantPrismaClient) {}
 
   // User Group operations
   async createUserGroup(input: CreateUserGroupInput): Promise<UserGroup> {
@@ -339,5 +339,12 @@ export class UserGroupService {
     };
   }
 }
+
+
+
+
+
+
+
 
 

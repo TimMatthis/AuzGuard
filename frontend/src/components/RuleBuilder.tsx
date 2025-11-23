@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Rule, Effect, Severity, Category } from '../types';
+import { Rule, Effect, Severity, Category, ResidencyRequirement } from '../types';
+import { useModelPools } from '../hooks/useModelPools';
 
 interface RuleBuilderProps {
   onRuleCreate: (rule: Rule) => void;
@@ -20,6 +21,12 @@ const SEVERITIES: Severity[] = [
   'INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
 ];
 
+const RESIDENCY_OPTIONS: Array<{ value: ResidencyRequirement; label: string }> = [
+  { value: 'AUTO', label: 'Auto (use policy defaults/router)' },
+  { value: 'AU_ONSHORE', label: 'Australian onshore only' },
+  { value: 'ON_PREMISE', label: 'On-premise/local-only' }
+];
+
 const JURISDICTIONS = [
   'AU', 'NSW', 'VIC', 'ACT', 'QLD', 'SA', 'WA', 'TAS', 'NT'
 ];
@@ -36,6 +43,7 @@ const REGIONS = ['AU', 'US', 'EU', 'UK', 'SG', 'JP'];
 const ENVIRONMENTS = ['production', 'staging', 'development', 'testing', 'sandbox'];
 
 export function RuleBuilder({ onRuleCreate, onCancel, initialRule }: RuleBuilderProps) {
+  const { data: modelPools } = useModelPools();
   const [rule, setRule] = useState<Partial<Rule>>({
     rule_id: '',
     version: 'v1.0.0',
@@ -53,6 +61,7 @@ export function RuleBuilder({ onRuleCreate, onCancel, initialRule }: RuleBuilder
     },
     condition: '',
     effect: 'BLOCK',
+    residency_requirement: 'AUTO',
     route_to: '',
     obligations: [],
     priority: 10,
@@ -72,6 +81,12 @@ export function RuleBuilder({ onRuleCreate, onCancel, initialRule }: RuleBuilder
     },
     ...initialRule
   });
+
+  const routeValue = rule.route_to || '';
+  const poolOptions = modelPools ?? [];
+  const hasCustomRoute = Boolean(
+    routeValue && !poolOptions.some(pool => pool.pool_id === routeValue)
+  );
 
   const [conditionBuilder, setConditionBuilder] = useState({
     field: 'data_class',
@@ -485,19 +500,51 @@ export function RuleBuilder({ onRuleCreate, onCancel, initialRule }: RuleBuilder
               </select>
             </div>
 
+            <div className="form-group">
+              <label htmlFor="residency_requirement">Residency Requirement</label>
+              <select
+                id="residency_requirement"
+                value={rule.residency_requirement || 'AUTO'}
+                onChange={(e) => updateRule('residency_requirement', e.target.value as ResidencyRequirement)}
+              >
+                {RESIDENCY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
             {(rule.effect === 'ROUTE' || rule.effect === 'WARN_ROUTE') && (
               <div className="form-group">
                 <label htmlFor="route_to">Route To Pool</label>
                 <select
                   id="route_to"
-                  value={rule.route_to}
+                  value={hasCustomRoute ? routeValue : routeValue}
                   onChange={(e) => updateRule('route_to', e.target.value)}
                 >
-                  <option value="">Select pool...</option>
-                  <option value="onshore_default_pool">Onshore Default Pool</option>
-                  <option value="sandbox_no_persist_pool">Sandbox No Persist Pool</option>
-                  <option value="bias_audited_pool">Bias Audited Pool</option>
+                  <option value="">
+                    {poolOptions.length ? 'Select pool...' : 'No model pools available'}
+                  </option>
+                  {poolOptions.map(pool => (
+                    <option key={pool.pool_id} value={pool.pool_id}>
+                      {pool.pool_id}
+                      {pool.region ? ` • ${pool.region}` : ''}
+                      {pool.description ? ` — ${pool.description}` : ''}
+                    </option>
+                  ))}
+                  {hasCustomRoute && (
+                    <option value={routeValue}>{routeValue} (custom)</option>
+                  )}
                 </select>
+                <div className="form-group mt-3">
+                  <label htmlFor="custom_route_to">Or enter custom pool ID</label>
+                  <input
+                    id="custom_route_to"
+                    type="text"
+                    value={routeValue}
+                    placeholder="custom_pool_id"
+                    onChange={(e) => updateRule('route_to', e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>

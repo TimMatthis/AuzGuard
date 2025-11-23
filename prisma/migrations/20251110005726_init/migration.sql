@@ -12,44 +12,16 @@
   - You are about to drop the `users` table. If the table is not empty, all the data it contains will be lost.
 
 */
--- DropForeignKey
-ALTER TABLE "route_targets" DROP CONSTRAINT "route_targets_pool_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "user_groups" DROP CONSTRAINT "user_groups_product_access_group_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "user_groups" DROP CONSTRAINT "user_groups_route_profile_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "users" DROP CONSTRAINT "users_user_group_id_fkey";
-
--- DropTable
-DROP TABLE "audit_log";
-
--- DropTable
-DROP TABLE "model_invocations";
-
--- DropTable
-DROP TABLE "model_pools";
-
--- DropTable
-DROP TABLE "policies";
-
--- DropTable
-DROP TABLE "product_access_groups";
-
--- DropTable
-DROP TABLE "route_profiles";
-
--- DropTable
-DROP TABLE "route_targets";
-
--- DropTable
-DROP TABLE "user_groups";
-
--- DropTable
-DROP TABLE "users";
+-- Drop tables if they exist (and cascade to dependent constraints)
+DROP TABLE IF EXISTS "users" CASCADE;
+DROP TABLE IF EXISTS "user_groups" CASCADE;
+DROP TABLE IF EXISTS "route_profiles" CASCADE;
+DROP TABLE IF EXISTS "product_access_groups" CASCADE;
+DROP TABLE IF EXISTS "route_targets" CASCADE;
+DROP TABLE IF EXISTS "model_pools" CASCADE;
+DROP TABLE IF EXISTS "model_invocations" CASCADE;
+DROP TABLE IF EXISTS "audit_log" CASCADE;
+DROP TABLE IF EXISTS "policies" CASCADE;
 
 -- CreateTable
 CREATE TABLE "tenants" (

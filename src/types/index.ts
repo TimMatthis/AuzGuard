@@ -26,6 +26,8 @@ export type Jurisdiction =
 
 export type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type ResidencyRequirement = "AUTO" | "AU_ONSHORE" | "ON_PREMISE";
+
 export type UserRole = "admin" | "compliance" | "developer" | "viewer";
 
 export interface Rule {
@@ -46,6 +48,7 @@ export interface Rule {
   match?: Record<string, unknown>;
   condition: string; // CEL-ish expression
   effect: Effect;
+  residency_requirement?: ResidencyRequirement;
   route_to?: string;
   obligations?: string[];
   evidence_requirements?: string[];
@@ -80,6 +83,8 @@ export interface Policy {
     conflict_resolution: "FIRST_MATCH";
     default_effect: Effect;
   };
+  residency_requirement_default?: ResidencyRequirement;
+  residency_override?: ResidencyRequirement;
   rules: Rule[];
 }
 
@@ -95,9 +100,20 @@ export interface SimulationTraceStep {
   skipped?: boolean;
 }
 
+export interface RuleInsight {
+  rule_id: string;
+  confidence: number;
+  signals: string[];
+  suggested_fields?: Record<string, unknown>;
+  missing_fields?: string[];
+  notes?: string;
+  matched?: boolean;
+}
+
 export interface SimulationResult {
   decision: Effect;
   route_to?: string;
+  residency_requirement?: ResidencyRequirement;
   matched_rule?: string;
   trace: SimulationTraceStep[];
   obligations_applied: string[];
@@ -106,6 +122,7 @@ export interface SimulationResult {
     require_justification: boolean;
   };
   audit_log_id?: string;
+  rule_insights?: RuleInsight[];
 }
 
 export interface AuditLogItem {
@@ -202,6 +219,7 @@ export interface RoutingPreference {
   max_cost_per_1k_aud?: number; // disqualify if above
   min_quality_score?: number; // prefer models scoring above
   required_output_tokens?: number; // ensure model can produce at least this
+  requires_on_prem?: boolean;
 }
 
 // Routing profile (saved route config that can be assigned to groups)

@@ -43,6 +43,18 @@ Before rule evaluation, incoming requests are enriched by the `PreprocessorServi
 }
 ```
 
+### 1b. Rule Detector Insights
+
+- **Location**: `src/services/ruleDetectors.ts`
+- **Purpose**: Evaluate the enriched payload (including raw message text) against heuristics for every catalogued rule. Each detector can:
+  - Suggest additional context fields (e.g. set `data_class: 'health_record'` when clinical terms are detected)
+  - Emit a `RuleInsight` entry with `rule_id`, `confidence`, detected `signals`, and any missing fields required for the CEL condition
+- **Output**: Detectors append two artifacts to the payload returned by `PreprocessorService`:
+  1. Derived context fields (merged directly onto the request before policy evaluation)
+  2. `__rule_insights`: internal array consumed by `EvaluationService` and surfaced to clients as `rule_insights`, enabling the UI/simulator to explain why a rule is likely to match even before the formal CEL condition fires.
+
+This ensures the system parses the actual chat payload, highlights candidate rule matches, and keeps the CEL expressions unchanged.
+
 ### 2. Rule Evaluation Order
 
 **Location**: `src/evaluator/cel.ts` → `evaluatePolicy()`
@@ -326,6 +338,19 @@ risk_flags && 'violence' in risk_flags
 ```
 
 **Logic**: The `route_to` value is extracted and included in the evaluation result.
+
+## Residency Outcomes
+
+- **Rule-level**: Each rule can now set `residency_requirement` (`AUTO`, `AU_ONSHORE`, `ON_PREMISE`). When the rule matches, that value is attached to the evaluation result.
+- **Policy default**: `residency_requirement_default` applies whenever a rule omits the field.
+- **Policy override**: `residency_override` forces every evaluation to honour the specified outcome, even if the matched rule asked for something weaker.
+
+**Routing enforcement**
+- `/api/routes/execute` converts the resolved requirement into strict routing preferences:
+  - `AU_ONSHORE` → `required_data_residency = 'AU_LOCAL'`
+  - `ON_PREMISE` → `requires_on_prem = true` (+ `required_data_residency` if unset)
+- `RouteService.rankTargets` uses those flags to disqualify any target that doesn’t meet the residency rule (e.g., a public-cloud OpenAI endpoint will never be picked for an `ON_PREMISE` rule).
+- `residency_requirement` is echoed back to the client so UIs and audits show which residency guardrail was enforced.
 
 ### 4. REQUIRE_OVERRIDE
 
@@ -654,5 +679,10 @@ AuzGuard's rule evaluation system:
 6. **Supports** overrides for high-risk scenarios requiring human approval
 
 The system is designed to be deterministic, traceable, and compliant with Australian privacy and AI governance requirements.
+
+
+
+
+
 
 

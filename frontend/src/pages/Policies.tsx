@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Policy, Rule, Effect, CatalogRuleSummary } from '../types';
+import { Policy, Rule, Effect, CatalogRuleSummary, ResidencyRequirement } from '../types';
 import { CatalogAddModal } from '../components/CatalogAddModal';
 import { useAuth } from '../contexts/AuthContext';
 // Import Policy JSON and frontend rule editor removed
@@ -30,12 +30,20 @@ const enabledStyles = {
 
 const EFFECT_OPTIONS: Effect[] = ['ALLOW', 'BLOCK', 'ROUTE', 'REQUIRE_OVERRIDE', 'WARN_ROUTE'];
 
+const RESIDENCY_OPTIONS: { value: ResidencyRequirement; label: string }[] = [
+  { value: 'AUTO', label: 'Auto (router decides)' },
+  { value: 'AU_ONSHORE', label: 'Australian onshore only' },
+  { value: 'ON_PREMISE', label: 'On-prem/local model only' }
+];
+
 interface CreatePolicyForm {
   policy_id: string;
   title: string;
   version: string;
   jurisdiction: string;
   default_effect: Effect;
+  residency_requirement_default: ResidencyRequirement;
+  residency_override: ResidencyRequirement;
 }
 
 const evaluationOrderDescriptions: Record<string, string> = {
@@ -105,6 +113,8 @@ export function Policies() {
           conflict_resolution: 'FIRST_MATCH',
           default_effect: form.default_effect
         },
+        residency_requirement_default: form.residency_requirement_default,
+        residency_override: form.residency_override === 'AUTO' ? undefined : form.residency_override,
         rules: []
       };
       return apiClient.createPolicy(newPolicy);
@@ -148,6 +158,24 @@ export function Policies() {
     }
     return orderedRules[0];
   }, [orderedRules, selectedRuleId]);
+
+  const handlePolicyResidencyChange = (
+    field: 'residency_requirement_default' | 'residency_override',
+    value: ResidencyRequirement
+  ) => {
+    if (!selectedPolicy) return;
+    const normalizedValue =
+      field === 'residency_override' && value === 'AUTO'
+        ? undefined
+        : value;
+
+    const updatedPolicy: Policy = {
+      ...selectedPolicy,
+      [field]: normalizedValue as ResidencyRequirement | undefined
+    };
+
+    updatePolicyMutation.mutate(updatedPolicy);
+  };
 
   const createPolicyError = createPolicyMutation.error instanceof Error ? createPolicyMutation.error.message : null;
   const deletePolicyError = deletePolicyMutation.error instanceof Error ? deletePolicyMutation.error.message : null;
@@ -288,6 +316,47 @@ export function Policies() {
           )}
         </div>
       </header>
+
+      {selectedPolicy && (
+        <section className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-5 space-y-4">
+          <div>
+            <h2 className="text-lg font-medium text-white">Residency Guardrails</h2>
+            <p className="text-sm text-gray-400">Force every evaluation to honour onshore or on-prem targets, or inherit the rule defaults.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <label className="block text-gray-300 mb-1">Default residency outcome</label>
+              <select
+                value={selectedPolicy.residency_requirement_default || 'AUTO'}
+                onChange={(event) => handlePolicyResidencyChange('residency_requirement_default', event.target.value as ResidencyRequirement)}
+                disabled={!canPublishRules}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
+              >
+                {RESIDENCY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Used when a rule does not specify its own residency requirement.</p>
+            </div>
+            <div>
+              <label className="block text-gray-300 mb-1">Global override</label>
+              <select
+                value={selectedPolicy.residency_override || 'AUTO'}
+                onChange={(event) => handlePolicyResidencyChange('residency_override', event.target.value as ResidencyRequirement)}
+                disabled={!canPublishRules}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
+              >
+                {RESIDENCY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.value === 'AUTO' ? 'None (follow defaults)' : option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Forces all matching rules to respect this residency requirement.</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <section className="bg-gray-800 bg-opacity-80 border border-gray-800 rounded-lg p-5 space-y-4">
@@ -798,7 +867,9 @@ function CreatePolicyModal({ isOpen, onClose, onSubmit, isSubmitting, errorMessa
     title: '',
     version: 'v1.0.0',
     jurisdiction: 'AU',
-    default_effect: 'ALLOW'
+    default_effect: 'ALLOW',
+    residency_requirement_default: 'AUTO',
+    residency_override: 'AUTO'
   });
 
   React.useEffect(() => {
@@ -808,7 +879,9 @@ function CreatePolicyModal({ isOpen, onClose, onSubmit, isSubmitting, errorMessa
         title: '',
         version: 'v1.0.0',
         jurisdiction: 'AU',
-        default_effect: 'ALLOW'
+        default_effect: 'ALLOW',
+        residency_requirement_default: 'AUTO',
+        residency_override: 'AUTO'
       });
     }
   }, [isOpen]);
@@ -884,6 +957,35 @@ function CreatePolicyModal({ isOpen, onClose, onSubmit, isSubmitting, errorMessa
                 <option key={effect} value={effect}>{effect}</option>
               ))}
             </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-300 mb-1">Residency Default</label>
+              <select
+                value={form.residency_requirement_default}
+                onChange={(event) => setForm(prev => ({ ...prev, residency_requirement_default: event.target.value as ResidencyRequirement }))}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {RESIDENCY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Used when rules do not declare a residency outcome.</p>
+            </div>
+            <div>
+              <label className="block text-gray-300 mb-1">Residency Override</label>
+              <select
+                value={form.residency_override}
+                onChange={(event) => setForm(prev => ({ ...prev, residency_override: event.target.value as ResidencyRequirement }))}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {RESIDENCY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.value === 'AUTO' ? 'None (follow defaults)' : option.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Forces all evaluations to honour this residency, regardless of rule settings.</p>
+            </div>
           </div>
 
           {errorMessage && (

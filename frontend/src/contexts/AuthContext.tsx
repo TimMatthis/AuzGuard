@@ -56,6 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       apiClient.setToken(response.token);
       setToken(response.token);
       setUser(response.user);
+      try { window.dispatchEvent(new Event('auzguard-token-changed')); } catch {}
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Login failed');
     }
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       apiClient.setToken(response.token);
       setToken(response.token);
       setUser(response.user);
+      try { window.dispatchEvent(new Event('auzguard-token-changed')); } catch {}
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Registration failed');
     }
@@ -83,6 +85,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     apiClient.setToken(mockToken);
     setToken(mockToken);
     setUser(mockUser);
+    try { window.dispatchEvent(new Event('auzguard-token-changed')); } catch {}
   };
 
   const logout = () => {
@@ -90,6 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     apiClient.setToken(null);
     setToken(null);
     setUser(null);
+    try { window.dispatchEvent(new Event('auzguard-token-changed')); } catch {}
   };
 
   const hasPermission = (action: string): boolean => {

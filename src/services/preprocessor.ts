@@ -1,24 +1,7 @@
 // Lightweight content inspection and enrichment for request payloads
 
-export interface InspectionResult {
-  contains_pii?: boolean;
-  pii_types?: string[];
-  detected?: {
-    emails?: string[];
-    phone_numbers?: string[];
-    id_numbers?: string[];
-    credit_cards?: string[];
-    addresses?: string[];
-    abns?: string[];
-    tfns?: string[];
-    ssns?: string[];
-    profanities?: string[];
-  };
-  message_text?: string;
-  risk_flags?: string[];
-  possible_copyrighted?: boolean;
-  profanity_count?: number;
-}
+import { InspectionResult } from './inspectionTypes';
+import { runRuleDetectors } from './ruleDetectors';
 
 export class PreprocessorService {
   enrich(payload: Record<string, unknown>): Record<string, unknown> {
@@ -40,6 +23,14 @@ export class PreprocessorService {
     // Convenience: set personal_information true if PII detected and not already provided
     if (inspection.contains_pii && typeof enriched['personal_information'] === 'undefined') {
       enriched['personal_information'] = true;
+    }
+
+    const { derivedFields, insights } = runRuleDetectors(enriched, inspection);
+    if (Object.keys(derivedFields).length > 0) {
+      Object.assign(enriched, derivedFields);
+    }
+    if (insights.length > 0) {
+      (enriched as Record<string, unknown>)['__rule_insights'] = insights;
     }
 
     return enriched;

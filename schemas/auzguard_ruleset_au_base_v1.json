@@ -8,6 +8,7 @@
     "conflict_resolution": "FIRST_MATCH",
     "default_effect": "BLOCK"
   },
+  "residency_requirement_default": "AUTO",
   "rules": [
     {
       "rule_id": "HEALTH_NO_OFFSHORE",
@@ -259,6 +260,7 @@
       "legal_basis": ["Privacy Act 2025"],
       "condition": "contains_pii == true && environment in ['prod', 'default']",
       "effect": "ROUTE",
+      "residency_requirement": "AU_ONSHORE",
       "route_to": "onshore_default_pool",
       "obligations": ["LOG_IMMUTABLE", "MASK_AT_REST"],
       "priority": 10,
@@ -334,6 +336,7 @@
       },
       "condition": "data_class in ['cdr_data', 'banking_data', 'financial_data']",
       "effect": "ROUTE",
+      "residency_requirement": "AU_ONSHORE",
       "route_to": "onshore_default_pool",
       "obligations": ["LOG_IMMUTABLE", "NOTIFY_ACMA"],
       "priority": 3,
@@ -369,6 +372,7 @@
       },
       "condition": "data_class in ['sensitive_personal', 'demographic_data'] && ai_risk_level == 'high'",
       "effect": "ROUTE",
+      "residency_requirement": "AU_ONSHORE",
       "route_to": "bias_audited_pool",
       "obligations": ["LOG_IMMUTABLE", "BIAS_AUDIT_REQUIRED"],
       "priority": 4,
@@ -405,6 +409,7 @@
       },
       "condition": "environment in ['sandbox', 'testing', 'development']",
       "effect": "ROUTE",
+      "residency_requirement": "ON_PREMISE",
       "route_to": "sandbox_no_persist_pool",
       "obligations": ["LOG_IMMUTABLE"],
       "priority": 5,

@@ -23,6 +23,7 @@ import { UserGroups } from './pages/UserGroups'
 import { ProductAccessGroups } from './pages/ProductAccessGroups'
 import { Users } from './pages/Users'
 import { CompanyAdmin } from './pages/CompanyAdmin'
+import { ApiKeys } from './pages/ApiKeys'
 import { BrandingProvider } from './contexts/BrandingContext'
 
 function App() {
@@ -118,9 +119,7 @@ function App() {
 
           <Route path="/chat-ui" element={
             <ProtectedRoute>
-              <Layout>
-                <ChatUI />
-              </Layout>
+              <ChatUI />
             </ProtectedRoute>
           } />
 
@@ -159,6 +158,14 @@ function App() {
             <ProtectedRoute requiredPermission="manage_settings">
               <Layout>
                 <CompanyAdmin />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/api-keys" element={
+            <ProtectedRoute requiredPermission="manage_api_keys">
+              <Layout>
+                <ApiKeys />
               </Layout>
             </ProtectedRoute>
           } />

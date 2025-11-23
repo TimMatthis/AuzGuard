@@ -1,5 +1,6 @@
 // Tenant Branding Service
 import type { PrismaClient as TenantPrismaClient } from '@prisma/client';
+import type { PrismaClient as MasterPrismaClient } from '../../node_modules/.prisma/client-master';
 
 export interface TenantBranding {
   id: string;
@@ -15,7 +16,11 @@ export interface UpdateBrandingInput {
 }
 
 export class BrandingService {
-  constructor(private prisma: TenantPrismaClient) {}
+  constructor(
+    private prisma: TenantPrismaClient,
+    private masterPrisma?: MasterPrismaClient,
+    private tenantSlug?: string
+  ) {}
 
   async getBranding(): Promise<TenantBranding | null> {
     // Get the first (and should be only) branding record
@@ -26,8 +31,10 @@ export class BrandingService {
     // Try to update existing branding record, or create if doesn't exist
     const existing = await this.prisma.tenantBranding.findFirst();
     
+    let result: TenantBranding;
+    
     if (existing) {
-      return await this.prisma.tenantBranding.update({
+      result = await this.prisma.tenantBranding.update({
         where: { id: existing.id },
         data: {
           ...(data.company_name !== undefined && { company_name: data.company_name }),
@@ -39,13 +46,28 @@ export class BrandingService {
       if (!data.company_name) {
         throw new Error('company_name is required when creating branding');
       }
-      return await this.prisma.tenantBranding.create({
+      result = await this.prisma.tenantBranding.create({
         data: {
           company_name: data.company_name,
           logo_url: data.logo_url || null,
         },
       });
     }
+
+    // Also update the master database if we have access to it
+    if (this.masterPrisma && this.tenantSlug && data.company_name !== undefined) {
+      try {
+        await this.masterPrisma.tenant.updateMany({
+          where: { slug: this.tenantSlug },
+          data: { company_name: data.company_name },
+        });
+      } catch (error) {
+        // Log error but don't fail the request
+        console.error('Failed to sync company name to master database:', error);
+      }
+    }
+
+    return result;
   }
 
   async initializeBranding(company_name: string): Promise<TenantBranding> {
@@ -63,4 +85,3 @@ export class BrandingService {
     });
   }
 }
-

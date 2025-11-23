@@ -107,7 +107,7 @@ export class AuthService {
       viewer: ['read'],
       developer: ['read', 'edit_rules', 'simulate'],
       compliance: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides'],
-      admin: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides', 'manage_routes', 'manage_users', 'manage_settings']
+      admin: ['read', 'edit_rules', 'simulate', 'publish_rules', 'manage_overrides', 'manage_routes', 'manage_users', 'manage_settings', 'manage_api_keys']
     };
 
     return permissions[userRole]?.includes(action) || false;

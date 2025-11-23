@@ -2,6 +2,7 @@
 // This is deployed to each tenant's database
 generator client {
   provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client-tenant"
 }
 
 datasource db {
@@ -24,6 +25,7 @@ model User {
   is_active         Boolean             @default(true)
   user_group_id     String?
   userGroup         UserGroup?          @relation(fields: [user_group_id], references: [id], onDelete: SetNull)
+  chatSessions      ChatSession[]
 
   @@map("users")
 }
@@ -78,6 +80,8 @@ model Policy {
   jurisdiction        String
   evaluation_strategy Json
   rules               Json
+  residency_requirement_default String?
+  residency_override            String?
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
   published_by        String?
@@ -157,5 +161,45 @@ model TenantBranding {
   updated_at   DateTime @updatedAt
 
   @@map("tenant_branding")
+}
+
+model ChatSession {
+  id          String       @id @default(uuid())
+  user_id     String
+  title       String?      // First message preview or custom title
+  policy_id   String?
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages    ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id            String      @id @default(uuid())
+  session_id    String
+  role          String      // 'user' or 'assistant'
+  content       String
+  created_at    DateTime    @default(now())
+  session       ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id], map: "idx_chat_message_session")
+  @@map("chat_messages")
+}
+
+model ApiKey {
+  id            String   @id @default(uuid())
+  provider      String   // 'openai', 'gemini', 'ollama', etc.
+  name          String   // Human-readable name (e.g., "OpenAI Production")
+  encrypted_key String   // Encrypted API key
+  models        Json?    // Array of model identifiers this key can be used for
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  last_used_at  DateTime?
+
+  @@unique([provider, name])
+  @@map("api_keys")
 }
 

@@ -1,9 +1,5 @@
 import { ProductAccessGroup, ProductKey } from '../types';
-
-const LS_GROUPS_KEY = 'auzguard_product_access_groups';
-const LS_ASSIGN_KEY = 'auzguard_product_access_assignments'; // map: userGroupId -> productAccessGroupId
-
-type Assignments = Record<string, string | undefined>;
+import { apiClient } from '../api/client';
 
 export const ALL_PRODUCTS: { key: ProductKey; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -19,86 +15,111 @@ export const ALL_PRODUCTS: { key: ProductKey; label: string }[] = [
   { key: 'settings', label: 'Settings' },
 ];
 
-function readGroups(): ProductAccessGroup[] {
-  try {
-    const raw = localStorage.getItem(LS_GROUPS_KEY);
-    return raw ? (JSON.parse(raw) as ProductAccessGroup[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeGroups(groups: ProductAccessGroup[]) {
-  localStorage.setItem(LS_GROUPS_KEY, JSON.stringify(groups));
-}
-
-function readAssignments(): Assignments {
-  try {
-    const raw = localStorage.getItem(LS_ASSIGN_KEY);
-    return raw ? (JSON.parse(raw) as Assignments) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeAssignments(assign: Assignments) {
-  localStorage.setItem(LS_ASSIGN_KEY, JSON.stringify(assign));
-}
-
 export const productAccess = {
-  list(): ProductAccessGroup[] {
-    return readGroups();
+  async list(): Promise<ProductAccessGroup[]> {
+    try {
+      const groups = await apiClient.getProductAccessGroups();
+      return groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        products: g.products as ProductKey[],
+        created_at: g.created_at,
+        updated_at: g.updated_at,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch product access groups:', error);
+      return [];
+    }
   },
-  get(id: string): ProductAccessGroup | undefined {
-    return readGroups().find(g => g.id === id);
+
+  async get(id: string): Promise<ProductAccessGroup | undefined> {
+    try {
+      const group = await apiClient.getProductAccessGroup(id);
+      return {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        products: group.products as ProductKey[],
+        created_at: group.created_at,
+        updated_at: group.updated_at,
+      };
+    } catch (error) {
+      console.error('Failed to fetch product access group:', error);
+      return undefined;
+    }
   },
-  create(name: string, description: string | undefined, products: ProductKey[]): ProductAccessGroup {
-    const now = new Date().toISOString();
-    const group: ProductAccessGroup = {
-      id: `pag_${Date.now()}`,
+
+  async create(name: string, description: string | undefined, products: ProductKey[]): Promise<ProductAccessGroup> {
+    const group = await apiClient.createProductAccessGroup({
       name,
       description,
       products,
-      created_at: now,
-      updated_at: now,
+    });
+
+    return {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      products: group.products as ProductKey[],
+      created_at: group.created_at,
+      updated_at: group.updated_at,
     };
-    const groups = readGroups();
-    groups.push(group);
-    writeGroups(groups);
-    return group;
   },
-  update(id: string, patch: Partial<Omit<ProductAccessGroup, 'id' | 'created_at'>>): ProductAccessGroup | undefined {
-    const groups = readGroups();
-    const idx = groups.findIndex(g => g.id === id);
-    if (idx === -1) return undefined;
-    const updated: ProductAccessGroup = {
-      ...groups[idx],
-      ...patch,
-      updated_at: new Date().toISOString(),
-    } as ProductAccessGroup;
-    groups[idx] = updated;
-    writeGroups(groups);
-    return updated;
-  },
-  remove(id: string) {
-    const groups = readGroups().filter(g => g.id !== id);
-    writeGroups(groups);
-    // Clean up assignments
-    const assign = readAssignments();
-    for (const k of Object.keys(assign)) {
-      if (assign[k] === id) assign[k] = undefined;
+
+  async update(id: string, patch: Partial<Omit<ProductAccessGroup, 'id' | 'created_at'>>): Promise<ProductAccessGroup | undefined> {
+    try {
+      const updated = await apiClient.updateProductAccessGroup(id, {
+        name: patch.name,
+        description: patch.description,
+        products: patch.products,
+      });
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        products: updated.products as ProductKey[],
+        created_at: updated.created_at,
+        updated_at: updated.updated_at,
+      };
+    } catch (error) {
+      console.error('Failed to update product access group:', error);
+      return undefined;
     }
-    writeAssignments(assign);
   },
+
+  async remove(id: string): Promise<void> {
+    try {
+      await apiClient.deleteProductAccessGroup(id);
+    } catch (error) {
+      console.error('Failed to delete product access group:', error);
+      throw error;
+    }
+  },
+
   // Assignments: userGroupId -> productAccessGroupId
-  getAssignment(userGroupId: string): string | undefined {
-    const a = readAssignments();
-    return a[userGroupId];
+  // Note: This is now handled through UserGroup.product_access_group_id field
+  async getAssignment(userGroupId: string): Promise<string | undefined> {
+    try {
+      const userGroups = await apiClient.getUserGroups();
+      const userGroup = userGroups.find(ug => ug.id === userGroupId);
+      return userGroup?.product_access_group_id;
+    } catch (error) {
+      console.error('Failed to get user group assignment:', error);
+      return undefined;
+    }
   },
-  setAssignment(userGroupId: string, productAccessGroupId: string | undefined) {
-    const a = readAssignments();
-    a[userGroupId] = productAccessGroupId;
-    writeAssignments(a);
+
+  async setAssignment(userGroupId: string, productAccessGroupId: string | undefined): Promise<void> {
+    try {
+      await apiClient.updateUserGroup(userGroupId, {
+        product_access_group_id: productAccessGroupId,
+      });
+    } catch (error) {
+      console.error('Failed to set user group assignment:', error);
+      throw error;
+    }
   },
 };
 
